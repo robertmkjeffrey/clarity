@@ -67,6 +67,8 @@ def callback_handler(call):
     # Delete message after labelling
     bot.delete_message(keys['telegram']['chat_id'], call.message.message_id)
 
-
-print("Starting polling...")
-bot.polling()
+try:
+    print("Starting polling...")
+    bot.polling()
+except KeyboardInterrupt as e:
+    print("Stopped.")

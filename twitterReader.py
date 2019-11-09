@@ -112,7 +112,6 @@ class Listener(tweepy.StreamListener):
 listener = Listener()
 stream = tweepy.Stream(api.auth, listener, tweet_mode='extended')
 
-# TODO: print(f"Sending notifications to {notify.endpoint}")
 try:
     print("Starting stream...")
     stream.filter(follow=followed_users)

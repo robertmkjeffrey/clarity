@@ -27,8 +27,7 @@ def start_handler(message):
 @bot.message_handler(commands=['label'])
 def label_tweets(message):
     num_tweets = 1 if len(message.text.split()) != 2 else int(message.text.split()[1])
-    # TODO: do some activate learning here
-
+    
     # Get list of all non-tagged tweets    
     conn = sqlite3.connect("tweets.db")
     unlabelled_tweets = pd.read_sql_query("SELECT * FROM tweets WHERE notify IS NULL", conn)

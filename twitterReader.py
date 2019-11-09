@@ -3,10 +3,12 @@ import tweepy # Twitter API
 import telebot # Telegram API
 from telebot import types as tbMarkup
 import sqlite3 # SQL database management.
+import pandas as pd # Dataframes
 
 # Utility Modules
 import yaml
 from time import sleep
+import joblib
 
 # Helpers
 from helpers import notify_user
@@ -27,6 +29,9 @@ api = tweepy.API(auth)
 
 # Create a telegram bot object
 bot = telebot.TeleBot(keys['telegram']['api_key'])
+
+# Load machine learning model
+clf = joblib.load("model.joblib")
 
 # Create a SQLite connection.
 con = sqlite3.connect("tweets.db")
@@ -79,7 +84,8 @@ class Listener(tweepy.StreamListener):
         print(f"Got tweet from @{status.user.screen_name}.")
 
         # TODO: check if tweet should notify user.
-        if "adopt" in row_data['content'.lower()]:
+        tweet_df = pd.DataFrame.from_dict({k: [str(v)] for k,v in row_data.items()})
+        if clf.predict(tweet_df)[0] == 'True':
             print("Sending message...")
 
             notify_user(bot, keys['telegram']['chat_id'], row_data['id'])

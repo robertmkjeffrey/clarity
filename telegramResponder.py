@@ -1,10 +1,12 @@
 # Main Modules
 import telebot # Telegram API
 import sqlite3 # SQLite API
+import numpy as np # Arrays
+import pandas as pd # Dataframes
 
 # Utility Modules
 import yaml
-import re # Regexs
+import joblib
 
 # Helpers
 from helpers import labelTweet, notify_user
@@ -15,6 +17,9 @@ with open("keys.yaml", "r") as f:
 # Create a telegram bot object
 bot = telebot.TeleBot(keys['telegram']['api_key'])
 
+# Load machine learning model
+clf = joblib.load("model.joblib")
+
 @bot.message_handler(commands=['start'])
 def start_handler(message):
     bot.send_message(message.chat.id, "Welcome! This is a bot @DingoDingus uses to get notifed about tweets. If you're him, say /label to start labelling tweets, or wait for notification. If you're not, feel free to DM him about it!")
@@ -23,11 +28,17 @@ def start_handler(message):
 def label_tweets(message):
     num_tweets = 1 if len(message.text.split()) != 2 else int(message.text.split()[1])
     # TODO: do some activate learning here
-    connection = sqlite3.connect('tweets.db')
-    for _ in range(num_tweets):
-        with connection:
-            tweet_id = connection.execute("SELECT ID FROM tweets WHERE notify IS NULL ORDER BY RANDOM() LIMIT 1").fetchone()[0]    
-            notify_user(bot, keys['telegram']['chat_id'], tweet_id)
+
+    # Get list of all non-tagged tweets    
+    conn = sqlite3.connect("tweets.db")
+    unlabelled_tweets = pd.read_sql_query("SELECT * FROM tweets WHERE notify IS NULL", conn)
+    conn.close()
+    # Score them and get the ones with the smallest absolute value (closest to decision boundary)
+    ul_score = clf.decision_function(unlabelled_tweets)
+    # pylint: disable=no-member
+    lowest_tweets_indexes = np.argpartition(np.abs(ul_score), num_tweets)[:num_tweets]
+    for tweet_index in lowest_tweets_indexes:
+        notify_user(bot, keys['telegram']['chat_id'], unlabelled_tweets.loc[tweet_index]['id'], f"Score: {ul_score[tweet_index]:.3f}")
     
 @bot.message_handler(commands=['stats'])
 def send_stats(message):
@@ -51,10 +62,10 @@ def unrecognised_message(message):
 def callback_handler(call):
     bot.answer_callback_query(call.id)
     # Get the tweet id
-    if call.message.text[:29] == "https://twitter.com/statuses/":
-        tweet_id = call.message.text[29:]
-        labelTweet(tweet_id, call.data)
-    if call.data in ['cb_False', 'cb_Delete']:
+    label, tweet_id = call.data.split()
+
+    labelTweet(tweet_id, label)
+    if label in ['cb_False', 'cb_Delete']:
         bot.delete_message(keys['telegram']['chat_id'], call.message.message_id)
     else:
         bot.edit_message_reply_markup(keys['telegram']['chat_id'], call.message.message_id, reply_markup=None)

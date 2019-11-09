@@ -65,10 +65,8 @@ def callback_handler(call):
     label, tweet_id = call.data.split()
 
     labelTweet(tweet_id, label)
-    if label in ['cb_False', 'cb_Delete']:
-        bot.delete_message(keys['telegram']['chat_id'], call.message.message_id)
-    else:
-        bot.edit_message_reply_markup(keys['telegram']['chat_id'], call.message.message_id, reply_markup=None)
+    # Delete message after labelling
+    bot.delete_message(keys['telegram']['chat_id'], call.message.message_id)
 
 
 print("Starting polling...")

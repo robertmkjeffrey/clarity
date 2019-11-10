@@ -83,7 +83,6 @@ class Listener(tweepy.StreamListener):
 
         print(f"Got tweet from @{status.user.screen_name}.")
 
-        # TODO: check if tweet should notify user.
         tweet_df = pd.DataFrame.from_dict({k: [str(v)] for k,v in row_data.items()})
         if clf.predict(tweet_df)[0] == 'True':
             print("Sending message...")

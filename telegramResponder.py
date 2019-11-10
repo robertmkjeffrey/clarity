@@ -9,7 +9,7 @@ import yaml
 import joblib
 
 # Helpers
-from helpers import labelTweet, notify_user
+from helpers import label_tweet, notify_user
 
 with open("keys.yaml", "r") as f:
     keys = yaml.safe_load(f)
@@ -22,10 +22,12 @@ clf = joblib.load("model.joblib")
 
 @bot.message_handler(commands=['start'])
 def start_handler(message):
+    """Send instruction message back to user."""
     bot.send_message(message.chat.id, "Welcome! This is a bot @DingoDingus uses to get notifed about tweets. If you're him, say /label to start labelling tweets, or wait for notification. If you're not, feel free to DM him about it!")
 
 @bot.message_handler(commands=['label'])
-def label_tweets(message):
+def label_handler(message):
+    """Find tweets and send them to the user to be labelled."""
     num_tweets = 1 if len(message.text.split()) != 2 else int(message.text.split()[1])
     
     # Get list of all non-tagged tweets    
@@ -40,7 +42,8 @@ def label_tweets(message):
         notify_user(bot, keys['telegram']['chat_id'], unlabelled_tweets.loc[tweet_index]['id'], f"Score: {ul_score[tweet_index]:.3f}")
     
 @bot.message_handler(commands=['stats'])
-def send_stats(message):
+def stats_handler(message):
+    """Compute stats and send to user."""
     conn = sqlite3.connect('tweets.db')
     with conn:
         unlabelled_count = conn.execute("SELECT count(id) FROM tweets WHERE notify IS NULL").fetchone()[0]
@@ -53,6 +56,10 @@ Percent Labelled: {((false_count + true_count)/(unlabelled_count + false_count +
 Notify Percentage: {true_count / (true_count + false_count) * 100:.2f}%"""
 )
 
+@bot.message_handler(commands=['add'])
+def add_handler(message):
+    """Get a tweet from the user to be added to the database."""
+
 @bot.message_handler(func=lambda m: True)
 def unrecognised_message(message):
     bot.reply_to(message, "Sorry, I didn't understand what you said. Try /help for commands.")
@@ -63,7 +70,7 @@ def callback_handler(call):
     # Get the tweet id
     label, tweet_id = call.data.split()
 
-    labelTweet(tweet_id, label)
+    label_tweet(tweet_id, label)
     # Delete message after labelling
     bot.delete_message(keys['telegram']['chat_id'], call.message.message_id)
 

@@ -1,7 +1,19 @@
 import sqlite3 # SQLite API
+import tweepy # Twitter API
 from telebot import types as tbMarkup
 
-def labelTweet(tweetId, label):
+def add_tweet(status):
+    """Add a given tweet to the database.
+    Inputs:
+    =======
+    status: tweepy.Status
+        status to add to database.
+    """
+    # TODO: implement
+    assert isinstance(status, tweepy.Status)
+    raise NotImplementedError
+
+def label_tweet(tweetId, label):
     """Set the notify label of a tweet to a given label.
     Inputs:
     =======

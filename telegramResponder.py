@@ -28,7 +28,11 @@ def start_handler(message):
 @bot.message_handler(commands=['label'])
 def label_handler(message):
     """Find tweets and send them to the user to be labelled."""
-    num_tweets = 1 if len(message.text.split()) != 2 else int(message.text.split()[1])
+    if not (len(message.text.split()) == 1 or (len(message.text.split()) == 2 and message.text.split()[1].isnumeric())):
+        bot.reply_to(message, "Invalid number of tweets to label. Form should be \"/label x\", where x is an integer.")
+        return
+
+    num_tweets = 1 if len(message.text.split()) == 1 else int(message.text.split()[1])
     
     # Get list of all non-tagged tweets    
     conn = sqlite3.connect("tweets.db")
@@ -72,8 +76,11 @@ def callback_handler(call):
 
     label_tweet(tweet_id, label)
     # Delete message after labelling
-    bot.delete_message(keys['telegram']['chat_id'], call.message.message_id)
-
+    # TODO: Do we need the try catch?
+    try:
+        bot.delete_message(keys['telegram']['chat_id'], call.message.message_id)
+    except telebot.apihelper.ApiException:
+        print("Error: got exception from telegram.")
 try:
     print("Starting polling...")
     bot.polling()

@@ -47,8 +47,8 @@ clf = Pipeline([
         ('classifier', LinearSVC(class_weight='balanced'))
 ])
 
-score = cross_val_score(clf, X, y, cv=20)
 clf.fit(X, y)
-print(f"Score: {score.mean():.2f}")
 
 joblib.dump(clf, "model.joblib")
+
+print("Done!")

@@ -87,7 +87,7 @@ class Listener(tweepy.StreamListener):
         if clf.predict(tweet_df)[0] == 'True':
             print("Sending message...")
 
-            notify_user(bot, keys['telegram']['chat_id'], row_data['id'])
+            notify_user(bot, keys['telegram']['chat_id'], row_data['id'], f"Score: {clf.decision_function(tweet_df)[0]:.3f}")
         return True
 
     def _get_row_data(self, status, get_extended_test=False):
@@ -122,6 +122,9 @@ try:
     stream.filter(follow=followed_users)
 except KeyboardInterrupt as e:
     print("Stopped.")
+except Exception as e:
+    bot.send_message(keys['telegram']['chat_id'], "Warning: Twitter reader shutting down")
+    raise e
 finally:
     stream.disconnect()
     con.close()

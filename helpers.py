@@ -49,13 +49,18 @@ def notify_user(bot, chat_id, tweet_id, message=""):
     
 
 from nltk.tokenize.casual import TweetTokenizer, remove_handles 
-def tokenise(text):
+import emoji
+def preprocess(text):
+    text = emoji.demojize(remove_handles(text.lower()))
+    return text
+
+def tokenize(text):
     tknsr = TweetTokenizer()
-    
-    text = remove_handles(text).lower()
+
     raw_tokens = tknsr.tokenize(text)
     tokens = []
     for token in raw_tokens:
         if token.isnumeric(): tokens.append('$NUM$')
         else: tokens.append(token)
     return tokens
+        

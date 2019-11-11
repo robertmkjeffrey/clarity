@@ -7,7 +7,7 @@ import sqlite3 # SQL databases
 import joblib
 
 # Helpers
-from helpers import tokenise
+from helpers import tokenize, preprocess
 
 conn = sqlite3.connect("tweets.db")
 labelled_tweets = pd.read_sql_query("SELECT * FROM tweets WHERE notify IS NOT NULL", conn)
@@ -32,7 +32,7 @@ categorical_features = ['author', 'has_link', 'has_video', 'has_image']
 
 text_features = 'content'
 text_transformer = Pipeline([
-        ('vect', CountVectorizer(tokenizer = tokenise, ngram_range = (1,2))),
+        ('vect', CountVectorizer(preprocessor=preprocess, tokenizer=tokenize, ngram_range = (1,2))),
         ('tfidf', TfidfTransformer())
 ])
 
@@ -44,12 +44,11 @@ preprocessor = ColumnTransformer([
                                    
 clf = Pipeline([
         ('preprocessor', preprocessor),
-        ('classifier', LinearSVC())
+        ('classifier', LinearSVC(class_weight='balanced'))
 ])
 
 score = cross_val_score(clf, X, y, cv=20)
 clf.fit(X, y)
 print(f"Score: {score.mean():.2f}")
 
-tokenise.__module__
 joblib.dump(clf, "model.joblib")

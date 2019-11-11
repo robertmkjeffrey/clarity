@@ -47,7 +47,7 @@ clf = Pipeline([
         ('classifier', LinearSVC())
 ])
 
-score = cross_val_score(clf, X, y, cv=5)
+score = cross_val_score(clf, X, y, cv=20)
 clf.fit(X, y)
 print(f"Score: {score.mean():.2f}")
 

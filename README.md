@@ -6,4 +6,6 @@ Remember that this tool is aimed to be used with a list of "followed users", rat
 
 > If this tweet came from my favourite user, do I need to be notified immediately?
 
-Tweets should only be marked if there is a time-critical component of it.
+Some notes:
+* Tweets should only be marked if there is a time-critical component of it. Don't mark new items being posted to a site (such as a new book, or t-shirts) unless there's a heavily limited stock of them!
+* Raffles will show up anyways if they're good, and usually last for long enough to spread. Label them false!

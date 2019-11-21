@@ -11,7 +11,7 @@ from time import sleep
 import joblib
 
 # Helpers
-from helpers import notify_user
+from helpers import notify_user, get_row_data
 
 with open("keys.yaml", "r") as f:
     keys = yaml.safe_load(f)
@@ -60,12 +60,11 @@ class Listener(tweepy.StreamListener):
         else:
             print(f"Error code {status_code}, check https://developer.twitter.com/en/docs/tweets/filter-realtime/guides/connecting.")
             return False
-
     
     def on_status(self, status):
         """React to a tweet by saving any non-reply and non-retween values, and notifying the user if it's desired."""
 
-        row_data = self._get_row_data(status)
+        row_data = get_row_data(status)
         
         # Remove retweets and replies
         if row_data['is_retweet'] or row_data['is_quote_rt'] or row_data["is_reply"]:
@@ -75,7 +74,7 @@ class Listener(tweepy.StreamListener):
         if status.truncated:
             # Update the status, then update the data
             status = api.get_status(row_data['id'], tweet_mode = 'extended')
-            row_data = self._get_row_data(status, get_extended_test=True)
+            row_data = get_row_data(status, get_extended_text=True)
 
         # Add the tweet's data the database.
         with con:
@@ -89,29 +88,6 @@ class Listener(tweepy.StreamListener):
 
             notify_user(bot, keys['telegram']['chat_id'], row_data['id'], f"Score: {clf.decision_function(tweet_df)[0]:.3f}")
         return True
-
-    def _get_row_data(self, status, get_extended_test=False):
-        data = {}
-        data['id'] = status.id_str
-        data['author'] = status.user.id_str # User Id
-        if get_extended_test:
-            data['content'] = status.full_text # Tweet text without truncation
-        else:
-            data['content'] = status.text # Tweet text
-
-        data['has_link'] = len(status.entities['urls']) > 0
-
-        # TODO: check these
-        data['has_video'] = 'media' in status.entities and any(map(lambda d: 'video' in d['expanded_url'], status.entities['media']))
-        data['has_image'] = not data['has_video'] and 'media' in status.entities and any(map(lambda d: d['type'] == "photo", status.entities['media']))
-
-        data['is_reply'] = status.in_reply_to_user_id is not None
-        data['is_retweet'] = "retweeted_status" in status._json
-        data['is_quote_rt'] = status.is_quote_status
-
-        data['notify'] = None
-
-        return data
         
 # Start listening
 listener = Listener()
@@ -123,7 +99,9 @@ try:
 except KeyboardInterrupt as e:
     print("Stopped.")
 except Exception as e:
-    bot.send_message(keys['telegram']['chat_id'], "Warning: Twitter reader shutting down")
+    bot.send_message(keys['telegram']['chat_id'], f"Warning: Twitter listener shutting down. Exception: \n{str(e)}")
+    with open("twitter.log", 'w') as f:
+        f.write(str(e))
     raise e
 finally:
     stream.disconnect()

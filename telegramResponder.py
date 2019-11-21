@@ -1,4 +1,5 @@
 # Main Modules
+import tweepy # Twitter API
 import telebot # Telegram API
 import sqlite3 # SQLite API
 import numpy as np # Arrays
@@ -9,10 +10,18 @@ import yaml
 import joblib
 
 # Helpers
-from helpers import label_tweet, notify_user
+from helpers import label_tweet, notify_user, add_tweet
 
 with open("keys.yaml", "r") as f:
     keys = yaml.safe_load(f)
+
+## SET UP TWITTER API
+# Set up the API auth.
+auth = tweepy.OAuthHandler(keys['twitter']['api_key'], keys['twitter']['api_secret_key'])
+auth.set_access_token(keys['twitter']['access_token'], keys['twitter']['access_token_secret'])
+
+# Create an api object
+api = tweepy.API(auth)
 
 # Create a telegram bot object
 bot = telebot.TeleBot(keys['telegram']['api_key'])
@@ -63,6 +72,17 @@ Notify Percentage: {true_count / (true_count + false_count) * 100:.2f}%"""
 @bot.message_handler(commands=['add'])
 def add_handler(message):
     """Get a tweet from the user to be added to the database."""
+    if not (len(message.text.split()) == 2 and message.text.split()[1].isnumeric()):
+        bot.reply_to(message, "Invalid tweet ID to add. Form should be \"/add xyz\", where xyz is a tweet id.")
+        return
+
+    tweet_id = message.text.split()[1]
+
+    if add_tweet(tweet_id, api):
+        notify_user(bot, keys['telegram']['chat_id'], tweet_id)
+    else:
+        notify_user(bot, keys['telegram']['chat_id'], tweet_id, "Tweet is already present in database.")
+
 
 @bot.message_handler(func=lambda m: True)
 def unrecognised_message(message):
@@ -86,3 +106,8 @@ try:
     bot.polling()
 except KeyboardInterrupt as e:
     print("Stopped.")
+except Exception as e:
+    bot.send_message(keys['telegram']['chat_id'], f"Warning: Telegram listener shutting down. Exception: \n{str(e)}")
+    with open("telegram.log", 'w') as f:
+        f.write(str(e))
+    raise e

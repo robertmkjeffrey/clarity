@@ -2,16 +2,35 @@ import sqlite3 # SQLite API
 import tweepy # Twitter API
 from telebot import types as tbMarkup
 
-def add_tweet(status):
+def add_tweet(status_id, api):
     """Add a given tweet to the database.
     Inputs:
     =======
-    status: tweepy.Status
-        status to add to database.
+    status_id: int or str
+        status id of tweet to add to database.
+    api: tweepy.API
+        twitter API object.
     """
     # TODO: implement
-    assert isinstance(status, tweepy.Status)
-    raise NotImplementedError
+    assert isinstance(status_id, int) or isinstance(status_id, str)
+    
+    # Get tweet with full text.
+    status = api.get_status(status_id, tweet_mode = 'extended')
+    row_data = get_row_data(status, get_extended_text=True)
+
+    conn = sqlite3.connect("tweets.db")
+    with conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM tweets WHERE id = ?", (status_id,))
+        data=cursor.fetchall()
+        if len(data)==0:
+            conn.execute("INSERT INTO tweets VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", tuple(map(lambda x: str(x) if x is not None else None, row_data.values())))
+            success = True
+        else:
+            success = False
+    conn.close()
+    return success
+    
 
 def label_tweet(tweetId, label):
     """Set the notify label of a tweet to a given label.
@@ -64,3 +83,26 @@ def tokenize(text):
         else: tokens.append(token)
     return tokens
         
+
+def get_row_data(status, get_extended_text=False):
+    data = {}
+    data['id'] = status.id_str
+    data['author'] = status.user.id_str # User Id
+    if get_extended_text:
+        data['content'] = status.full_text # Tweet text without truncation
+    else:
+        data['content'] = status.text # Tweet text
+
+    data['has_link'] = len(status.entities['urls']) > 0
+
+    # TODO: check these
+    data['has_video'] = 'media' in status.entities and any(map(lambda d: 'video' in d['expanded_url'], status.entities['media']))
+    data['has_image'] = not data['has_video'] and 'media' in status.entities and any(map(lambda d: d['type'] == "photo", status.entities['media']))
+
+    data['is_reply'] = status.in_reply_to_user_id is not None
+    data['is_retweet'] = "retweeted_status" in status._json
+    data['is_quote_rt'] = status.is_quote_status
+
+    data['notify'] = None
+
+    return data

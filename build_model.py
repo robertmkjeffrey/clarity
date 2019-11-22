@@ -25,8 +25,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import cross_val_score
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
-from sklearn.naive_bayes import ComplementNB
-from sklearn.svm import LinearSVC
+from sklearn.svm import SVC
 
 categorical_features = ['author', 'has_link', 'has_video', 'has_image']
 
@@ -44,7 +43,7 @@ preprocessor = ColumnTransformer([
                                    
 clf = Pipeline([
         ('preprocessor', preprocessor),
-        ('classifier', LinearSVC(class_weight='balanced'))
+        ('classifier', SVC(gamma = 'scale', class_weight='balanced', kernel = 'linear'))
 ])
 
 clf.fit(X, y)

@@ -78,10 +78,15 @@ def add_handler(message):
 
     tweet_id = message.text.split()[1]
 
-    if add_tweet(tweet_id, api):
-        notify_user(bot, keys['telegram']['chat_id'], tweet_id)
+    row_data, success = add_tweet(tweet_id, api)
+
+    tweet_df = pd.DataFrame.from_dict({k: [str(v)] for k,v in row_data.items()})
+
+    if success:
+        tweet_df = pd.DataFrame.from_dict({k: [str(v)] for k,v in row_data.items()})
+        notify_user(bot, keys['telegram']['chat_id'], tweet_id, f"Score: {clf.decision_function(tweet_df)[0]:.3f}")
     else:
-        notify_user(bot, keys['telegram']['chat_id'], tweet_id, "Tweet is already present in database.")
+        notify_user(bot, keys['telegram']['chat_id'], tweet_id, f"Score: {clf.decision_function(tweet_df)[0]:.3f}\nTweet is already present in database.")
 
 
 @bot.message_handler(func=lambda m: True)

@@ -10,6 +10,12 @@ def add_tweet(status_id, api):
         status id of tweet to add to database.
     api: tweepy.API
         twitter API object.
+    Returns:
+    ========
+    row_data: JSON
+        row of data extracted from the tweet
+    success: bool
+        return if the tweet was added (returning false if the tweet was present in the dataset.)
     """
     # TODO: implement
     assert isinstance(status_id, int) or isinstance(status_id, str)
@@ -29,7 +35,7 @@ def add_tweet(status_id, api):
         else:
             success = False
     conn.close()
-    return success
+    return row_data, success
     
 
 def label_tweet(tweetId, label):

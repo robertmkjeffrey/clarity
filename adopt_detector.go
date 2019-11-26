@@ -9,8 +9,10 @@ import (
 	"flag"
 )
 
-var keyFile string = "keys.yaml"
+const keyFile string = "keys.yaml"
 
+// postTypes stores a list of nil pointers of each type implementing streamablePost; 
+var postTypes = [...]streamablePost{tweet{}}
 
 // streamablePost represents a post from a website that can be downloaded in a "streamed".
 type streamablePost interface {
@@ -53,9 +55,13 @@ func main() {
 	postNotifyQueue := make(chan streamablePost, 100)
 
 	// Create a stream for each type of post to be downloaded.
-	(*tweet)(nil).createStream(postDownloadQueue)
+	for _, postType := range postTypes {
+		postType.createStream(postDownloadQueue)
+	}
 
 	go databaseWriter(postDownloadQueue, postNotifyQueue)
 	go postNotifier(postNotifyQueue)
+
+	select{}
 
 }

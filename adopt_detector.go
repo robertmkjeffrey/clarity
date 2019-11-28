@@ -12,13 +12,14 @@ import (
 const keyFile string = "keys.yaml"
 
 // postTypes stores a list of nil pointers of each type implementing streamablePost; 
-var postTypes = [...]streamablePost{tweet{}}
+var postTypes = [...]streamablePost{tweet{}, deviation{}}
 
 // streamablePost represents a post from a website that can be downloaded in a "streamed".
 type streamablePost interface {
-	createStream(chan<- streamablePost) // Spawn a goroutine to stream posts from the site and put them into the channel.
+	downloadStream(chan<- streamablePost) // Spawn a goroutine to stream posts from the site and put them into the channel.
 	formatLink() string // Format a link to the post.
-	getID() string // Get a unique id for the post.
+	siteName() string
+	ID() string // Get a unique id for the post.
 	getJSON() []byte // Convert the post to a JSON object. JSON should contain a field called "_id" which stores the same ID as above.
 }
 
@@ -56,7 +57,12 @@ func main() {
 
 	// Create a stream for each type of post to be downloaded.
 	for _, postType := range postTypes {
-		postType.createStream(postDownloadQueue)
+		go postType.downloadStream(postDownloadQueue)
+	}
+
+	//TODO: remove this
+	for {
+		fmt.Printf("%t", <-postDownloadQueue)
 	}
 
 	go databaseWriter(postDownloadQueue, postNotifyQueue)

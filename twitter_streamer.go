@@ -10,7 +10,7 @@ type tweet struct {
 	json []byte
 }
 
-func (tweet) createStream(chan<- streamablePost) {
+func (tweet) downloadStream(chan<- streamablePost) {
 	// TODO: implement
 }
 
@@ -18,7 +18,11 @@ func (t tweet) formatLink() string {
 	return fmt.Sprintf("http://twitter.com/statuses/%s", t.id)
 }
 
-func (t tweet) getID() string {
+func (tweet) siteName() string {
+	return "Twitter"
+}
+
+func (t tweet) ID() string {
 	return t.id
 }
 

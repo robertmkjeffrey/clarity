@@ -5,18 +5,23 @@ package main
 // TODO: Implement python webhook calls.
 
 import (
+	"io/ioutil"
+	"os"
 	"fmt"
+	"log"
 	"flag"
+	"gopkg.in/yaml.v2"
 )
 
-const keyFile string = "keys.yaml"
+const keyFileName string = "keys.yaml"
+var keys map[interface{}]interface{}
 
 // postTypes stores a list of nil pointers of each type implementing streamablePost; 
 var postTypes = [...]streamablePost{tweet{}, deviation{}}
 
 // streamablePost represents a post from a website that can be downloaded in a "streamed".
 type streamablePost interface {
-	downloadStream(chan<- streamablePost) // Spawn a goroutine to stream posts from the site and put them into the channel.
+	downloadStream(chan<- streamablePost) // Stream posts from the site and put them into the channel. Should be "go"ed
 	formatLink() string // Format a link to the post.
 	siteName() string
 	ID() string // Get a unique id for the post.
@@ -33,7 +38,7 @@ func databaseWriter(postDownloadQueue <-chan streamablePost, postNotifyQueue cha
 }
 
 func postNotifier(postNotifyQueue <-chan streamablePost) {
-	for _ = range postNotifyQueue {
+	for range postNotifyQueue {
 		// TODO: Send web request to the python script
 		
 		// TODO: if positive, send notification.
@@ -51,6 +56,16 @@ func main() {
 		return
 	}
 
+	// Load keys into memory
+	keyFile, err := os.Open(keyFileName)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	keyBytes, _ := ioutil.ReadAll(keyFile)
+	yaml.Unmarshal(keyBytes, &keys)
+
+	keyFile.Close()
+
 	// Make channels for passing around posts.
 	postDownloadQueue := make(chan streamablePost, 100)
 	postNotifyQueue := make(chan streamablePost, 100)
@@ -62,7 +77,7 @@ func main() {
 
 	//TODO: remove this
 	for {
-		fmt.Printf("%t", <-postDownloadQueue)
+		fmt.Printf("Got %t.\n", <-postDownloadQueue)
 	}
 
 	go databaseWriter(postDownloadQueue, postNotifyQueue)

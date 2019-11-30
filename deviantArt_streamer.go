@@ -13,34 +13,52 @@ import (
 )
 
 // Time to wait between polls of deviantArt
-const pollingRate = 5 * time.Minute
+const pollingDelay = 5 * time.Minute
 
 const urlEncoded = "application/x-www-form-urlencoded"
-var dAFollows chan dAFollow // Circular channel of followed users
+var dAFollows chan dAFeed // Circular channel of followed users
 
 // deviation implements the streamablePost interface, represeting a post drawn from deviantArt.
 type deviation struct {
-	id string
-	url string
-	json []byte
+	Deviationid string `json:"deviationid"`
+	URL string `json:"url"`
+	Author dAUser `json:"author"`
+	Title string `json:"title"`
+	Description string `json:"description"`
+	License string `json:"license"`
+	AllowsComments bool `json:"allows_comments"`
+	Tags []dATag `json:"tags"`
+	IsMature bool `json:"is_mature"`
 }
 
-type dAFollow interface {
-	// getResults queries deviantArt for the most recent posts from the follow.
-	getResults(offset int) map[string]interface{}
-	getLastQueryTime() int64
+type dATag struct {
+	TagName string `json:"tag_name"`
+	Sponsored bool `json:"sponsored"`
+	Sponsor string `json:"sponsor"`
 }
 
-type dATagFollow struct {
+type dAUser struct {
+	Userid string `json:"userid"`
+	Username string `json:"username"`
+	UserType string `json:"type"`	
+}
+
+type dAFeed struct {
+	dAFeedQuery
+	lastQueryTime time.Time
+	lastPostTime int64
+}
+
+type dAFeedQuery interface {
+	// getDAResults queries deviantArt for the most recent posts from the follow.
+	getDAResults(offset int) map[string]interface{}
+}
+
+type dATagQuery struct {
 	tag string
-	lastQueryTime int64
 }
 
-func (f dATagFollow) getLastQueryTime() int64 {
-	return f.lastQueryTime
-}
-
-func (f dATagFollow) getResults(offset int) map[string]interface{} {
+func (f dATagQuery) getDAResults(offset int) map[string]interface{} {
 	params := url.Values{}
 	params.Add("tag", f.tag)
 	// params.Add("offset", string(offset))
@@ -66,15 +84,54 @@ func (f dATagFollow) getResults(offset int) map[string]interface{} {
 	return result
 }
 
-type dAUserFollow struct {
+type dAUserQuery struct {
 	user string
-	lastQueryTime int64
+}
+
+func (f *dAUserQuery) getDAResults(offset int) map[string]interface{} {
+	//TODO: implement
+	return nil
 }
 
 // Global variable for access token storage.
 var dAAccessToken struct {
 	sync.RWMutex
 	token string
+}
+
+func getDeviation(id string) deviation {
+	return getDeviations([]string{id})[0]
+}
+
+func getDeviations(ids []string) []deviation {
+	// If there are too many ids to do in one go, run two queries and append the results.
+	if len(ids) > 50 {
+		return append(getDeviations(ids[:50]), getDeviations(ids[50:])...)
+	}
+
+	params := url.Values{}
+	for _, id := range ids {
+		params.Add("deviationids[]", id)
+	}
+	dAAccessToken.RLock()
+	params.Add("access_token", dAAccessToken.token)
+	dAAccessToken.RUnlock()
+
+	resp, err := http.Get(fmt.Sprintf("https://www.deviantart.com/api/v1/oauth2/deviation/metadata?%s", params.Encode()))
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+
+	// Decode the results. Anonomous struct to remove the top level metadata field.
+	var results struct {
+		Metadata []deviation `json:"metadata"`
+	}
+
+	json.NewDecoder(resp.Body).Decode(&results)
+	
+	return results.Metadata
+	
 }
 
 func getDAAccessToken() {
@@ -117,22 +174,24 @@ func getDAAccessToken() {
 }
 
 func dADownloadWorker(downloadQueue chan<- streamablePost) {
-	//TODO: implement
+
 	for {
 		// Get the next search and wait until the next polling opportunity
-		currentSearch := <-dAFollows
-		lastQueryTime := currentSearch.getLastQueryTime()
-		// Find time since last query
-		ellapsedTime := time.Since(time.Unix(lastQueryTime, 0))
+		feed := <-dAFollows
 		// Wait for polling time from last query
-		time.After(pollingRate - ellapsedTime)
+		<-time.After(pollingDelay - time.Since(feed.lastQueryTime))
 		
+		// Store the new ids to analyse in one go.
+		newIDs := make([]string, 0)
+		postURLs := make(map[string]string)
+
+		newLastPostTime := feed.lastPostTime
 		nextPage := 0
 		dAResultParseLoop:
 		for {
-			query := currentSearch.getResults(nextPage)
-			// log.Println(query)
+			query := feed.getDAResults(nextPage)
 			results := query["results"].([]interface{})
+
 			for _, result := range results {
 				result := result.(map[string]interface{})
 				// Parse the published time return value
@@ -141,16 +200,36 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 					log.Fatalln(err)
 				}
 				// If the result is older than the last parse time, end the query.
-				if publishedTime <= lastQueryTime {
+				if publishedTime <= feed.lastPostTime {
 					break dAResultParseLoop
 				}
-				// TODO: Make query to get deviation object etc.
-				downloadQueue <- deviation{}
+
+				// Set newQueryTime to the newest post time.
+				if publishedTime > newLastPostTime {
+					newLastPostTime = publishedTime
+				}
+
+				deviationid := result["deviationid"].(string)
+				// Add the new post to the newID string
+				newIDs = append(newIDs, deviationid)
+				postURLs[deviationid] = result["url"].(string)
 			}
 			nextPage++
 		}
+		feed.lastQueryTime = time.Now()
+		feed.lastPostTime = newLastPostTime
 
+		// Get the deviation objects.
+		newDeviations := getDeviations(newIDs)
 
+		// Put them into the output queue.
+		for _, deviation := range newDeviations {
+			deviation.URL = postURLs[deviation.Deviationid]
+			downloadQueue <- deviation
+		}
+
+		// Put the current seach back into the queue.
+		dAFollows <- feed
 	}
 }
 
@@ -168,8 +247,8 @@ func (deviation) createDownloadStream(downloadQueue chan<- streamablePost, worke
 	}()
 
 	// TODO: Read follow files from database.
-	dAFollows = make(chan dAFollow, 1)
-	dAFollows <- dATagFollow{tag:"vernid", lastQueryTime:1574935102}
+	dAFollows = make(chan dAFeed, 1)
+	dAFollows <- dAFeed{dATagQuery{tag:"vernid"}, time.Now().Add(-10 * time.Minute), 1574112310}
 
 	// Spawn a worker for each in the range of workers.
 	for i := 0; i < workers; i++ {
@@ -181,8 +260,7 @@ func (deviation) createDownloadStream(downloadQueue chan<- streamablePost, worke
 }
 
 func (d deviation) formatLink() string {
-	// TODO: implement
-	return ""
+	return d.URL
 }
 
 func (deviation) siteName() string {
@@ -190,10 +268,14 @@ func (deviation) siteName() string {
 }
 
 func (d deviation) ID() string {
-	return d.id
+	return d.Deviationid
 }
 
 func (d deviation) getJSON() []byte {
 	// TODO: Implement
-	return d.json
+	jsonData, err := json.Marshal(&d)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	return jsonData
 }

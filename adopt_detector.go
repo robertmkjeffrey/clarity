@@ -77,8 +77,8 @@ func main() {
 
 	//TODO: remove this
 	for {
-		<-postDownloadQueue
-		log.Printf("Got a post.\n")
+		post := <-postDownloadQueue
+		log.Println(post.formatLink())
 	}
 
 	go databaseWriter(postDownloadQueue, postNotifyQueue)

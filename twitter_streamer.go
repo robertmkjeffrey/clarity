@@ -22,7 +22,7 @@ func (tweet) siteName() string {
 	return "Twitter"
 }
 
-func (t tweet) ID() string {
+func (t tweet) getID() string {
 	return t.id
 }
 

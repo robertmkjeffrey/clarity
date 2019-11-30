@@ -20,6 +20,7 @@ var dAFollows chan dAFeed // Circular channel of followed users
 
 // deviation implements the streamablePost interface, represeting a post drawn from deviantArt.
 type deviation struct {
+	ID string `json:"_id"`
 	Deviationid string `json:"deviationid"`
 	URL string `json:"url"`
 	Author dAUser `json:"author"`
@@ -267,12 +268,19 @@ func (deviation) siteName() string {
 	return "DeviantArt"
 }
 
-func (d deviation) ID() string {
-	return d.Deviationid
+func (d deviation) getID() string {
+	
+	if d.ID == "" {
+		return d.Deviationid
+	}
+
+	return d.ID
+
 }
 
 func (d deviation) getJSON() []byte {
-	// TODO: Implement
+	// Empty Deviationid and fill _id instead
+	d.ID = d.Deviationid
 	jsonData, err := json.Marshal(&d)
 	if err != nil {
 		log.Fatalln(err)

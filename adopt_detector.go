@@ -21,7 +21,7 @@ var postTypes = [...]streamablePost{tweet{}, deviation{}}
 
 // streamablePost represents a post from a website that can be downloaded in a "streamed".
 type streamablePost interface {
-	downloadStream(chan<- streamablePost) // Stream posts from the site and put them into the channel. Should be "go"ed
+	createDownloadStream(downloadQueue chan<- streamablePost, workers int) // Stream posts from the site and put them into the channel.
 	formatLink() string // Format a link to the post.
 	siteName() string
 	ID() string // Get a unique id for the post.
@@ -72,12 +72,13 @@ func main() {
 
 	// Create a stream for each type of post to be downloaded.
 	for _, postType := range postTypes {
-		go postType.downloadStream(postDownloadQueue)
+		go postType.createDownloadStream(postDownloadQueue, 1)
 	}
 
 	//TODO: remove this
 	for {
-		fmt.Printf("Got %t.\n", <-postDownloadQueue)
+		<-postDownloadQueue
+		log.Printf("Got a post.\n")
 	}
 
 	go databaseWriter(postDownloadQueue, postNotifyQueue)

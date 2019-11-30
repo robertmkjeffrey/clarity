@@ -10,7 +10,7 @@ type tweet struct {
 	json []byte
 }
 
-func (tweet) downloadStream(chan<- streamablePost) {
+func (tweet) createDownloadStream(downloadQueue chan<- streamablePost, workers int) {
 	// TODO: implement
 }
 

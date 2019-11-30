@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const urlEncoded = "application/x-www-form-urlencoded"
+
 // deviation implements the streamablePost interface, represeting a post drawn from deviantArt.
 type deviation struct {
 	id string
@@ -26,6 +28,7 @@ func getDeviantArtAccessToken() {
 
 	deviantArtKeys := keys["deviantArt"].(map[interface{}]interface{})
 	
+	// Build url encoding of request.
 	params := url.Values{}
 	params.Add("grant_type", "client_credentials")
 	params.Add("client_id", deviantArtKeys["client_id"].(string))
@@ -33,20 +36,27 @@ func getDeviantArtAccessToken() {
 
 	requestSting := params.Encode()
 
-	resp, _ := http.Post("https://www.deviantart.com/oauth2/token",
-						 "application/x-www-form-urlencoded",
-						  bytes.NewBufferString(requestSting))
+	// Send request
+	resp, err := http.Post(	"https://www.deviantart.com/oauth2/token",
+						  	urlEncoded,
+						  	bytes.NewBufferString(requestSting))
 		
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// Decode the results
 	var result map[string]interface{}
 	
 	json.NewDecoder(resp.Body).Decode(&result)
 	
-	log.Println(result)
+	// If the response doesn't contain a valid token, throw an error.
 	token, ok := result["access_token"]
 	if !ok {
 		log.Fatalf("Error: DeviantArt token refresh failed with error %s\n", result["error"])
 	}
 
+	// Set the token globally.
 	deviantArtAccessToken.Lock()
 	deviantArtAccessToken.token = token.(string)
 	deviantArtAccessToken.Unlock()
@@ -56,7 +66,10 @@ func getDeviantArtAccessToken() {
 func (deviation) downloadStream(chan<- streamablePost) {
 	// TODO: make this work if spawned multiple times
 	// TODO: implement
+
+	// Request an access token.
 	getDeviantArtAccessToken()
+
 	// Every 59 minutes, get a new access token. Token expires every 60 minutes.
 	go func(){
 		for {

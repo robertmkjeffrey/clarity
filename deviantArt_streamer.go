@@ -1,11 +1,11 @@
 package main 
 
 import (
-	"fmt"
 	"encoding/json"
 	"log"
 	"bytes"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 )
@@ -25,12 +25,13 @@ var deviantArtAccessToken struct {
 func getDeviantArtAccessToken() {
 
 	deviantArtKeys := keys["deviantArt"].(map[interface{}]interface{})
+	
+	params := url.Values{}
+	params.Add("grant_type", "client_credentials")
+	params.Add("client_id", deviantArtKeys["client_id"].(string))
+	params.Add("client_secret", deviantArtKeys["client_secret"].(string))
 
-	// Get client objects and cast them to strings.
-	clientID := deviantArtKeys["client_id"].(string)
-	clientSecret := deviantArtKeys["client_secret"].(string)
-
-	requestSting := fmt.Sprintf("client_id=%s&client_secret=%s&grant_type=client_credentials", clientID, clientSecret)
+	requestSting := params.Encode()
 
 	resp, _ := http.Post("https://www.deviantart.com/oauth2/token",
 						 "application/x-www-form-urlencoded",

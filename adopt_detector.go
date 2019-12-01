@@ -36,13 +36,14 @@ type streamablePost interface {
 	createDownloadStream(downloadQueue chan<- streamablePost, workers int) // Stream posts from the site and put them into the channel.
 	formatLink() string // Format a link to the post.
 	siteName() string
+	getID() string // Return the field used as "_id" in the mongodb database.
 }
 
 func databaseWriter(postDownloadQueue <-chan streamablePost, postNotifyQueue chan<- streamablePost) {
 	for post := range postDownloadQueue {
 		// Add post to the appropriate collection.
 		log.Printf("Added %s\n", post.formatLink())
-		collection := database.Collection(fmt.Sprintf("%s-posts", post.siteName()))
+		collection := database.Collection(fmt.Sprintf("%sPosts", post.siteName()))
 		collection.InsertOne(context.TODO(), post)
 		// Send request to classifier
 		postNotifyQueue <- post
@@ -54,7 +55,7 @@ func postNotifier(postNotifyQueue <-chan streamablePost) {
 		// TODO: Send web request to the python script
 		
 		// TODO: Check if positive before sending notification.
-		telegramBot.Send(tgbotapi.NewMessage(chatID, post.formatLink()))
+		sendPost(post, 0.0)
 	}
 }
 
@@ -83,7 +84,7 @@ func main() {
 	if err != nil {
 		log.Panicln(err)
 	}
-	telegramBot.Debug = true
+	telegramBot.Debug = false
 	chatID = int64(telegramKeys["chat_id"].(int))
 
 	// Connect to mongoDB database.
@@ -93,6 +94,9 @@ func main() {
 	cancel()
 	database = client.Database(databaseName)
 
+	// Spawn callback handler
+	go telegramCallbackHandler()
+	
 	// Make channels for passing around posts.
 	postDownloadQueue := make(chan streamablePost, 100)
 	postNotifyQueue := make(chan streamablePost, 100)

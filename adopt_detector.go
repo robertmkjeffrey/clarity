@@ -5,6 +5,10 @@ package main
 // TODO: Implement python webhook calls.
 
 import (
+	"time"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"context"
+	"go.mongodb.org/mongo-driver/mongo"
 	"io/ioutil"
 	"os"
 	"fmt"
@@ -13,8 +17,14 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// Configuration constants.
+const mongoConnectTimeout = 5 * time.Second
+const databaseName = "adopt-detector"
 const keyFileName string = "keys.yaml"
+
+// Global shared objects.
 var keys map[interface{}]interface{}
+var database *mongo.Database
 
 // postTypes stores a list of nil pointers of each type implementing streamablePost; 
 var postTypes = [...]streamablePost{tweet{}, deviation{}}
@@ -30,8 +40,9 @@ type streamablePost interface {
 
 func databaseWriter(postDownloadQueue <-chan streamablePost, postNotifyQueue chan<- streamablePost) {
 	for post := range postDownloadQueue {
-		// TODO: Add post to the appropriate database
-
+		// Add post to the appropriate collection.
+		log.Printf("Added %s\n", post.formatLink())
+		database.Collection(post.siteName()).InsertOne(context.TODO(), post)
 		// Send request to classifier
 		postNotifyQueue <- post
 	}
@@ -75,12 +86,20 @@ func main() {
 		go postType.createDownloadStream(postDownloadQueue, 1)
 	}
 
-	//TODO: remove this
-	for {
-		post := <-postDownloadQueue
-		log.Println(post.formatLink())
-	}
+	// //TODO: remove this
+	// for {
+	// 	post := <-postDownloadQueue
+	// 	log.Println(post.formatLink())
+	// }
 
+	// Connect to mongoDB database.
+	mongoOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	ctx, cancel := context.WithTimeout(context.Background(), mongoConnectTimeout)
+	client, err := mongo.Connect(ctx, mongoOptions)
+	cancel()
+	database = client.Database(databaseName)
+
+	// Spawn the writers.
 	go databaseWriter(postDownloadQueue, postNotifyQueue)
 	go postNotifier(postNotifyQueue)
 

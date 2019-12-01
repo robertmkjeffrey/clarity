@@ -20,7 +20,7 @@ var dAFollows chan dAFeed // Circular channel of followed users
 
 // deviation implements the streamablePost interface, represeting a post drawn from deviantArt.
 type deviation struct {
-	Deviationid string `json:"deviationid"`
+	Deviationid string `json:"deviationid" bson:"_id"`
 	URL string `json:"url"`
 	Author dAUser `json:"author"`
 	Title string `json:"title"`
@@ -248,7 +248,7 @@ func (deviation) createDownloadStream(downloadQueue chan<- streamablePost, worke
 
 	// TODO: Read follow files from database.
 	dAFollows = make(chan dAFeed, 1)
-	dAFollows <- dAFeed{dATagQuery{tag:"vernid"}, time.Now().Add(-10 * time.Minute), 1574112310}
+	dAFollows <- dAFeed{dATagQuery{tag:"vernid"}, time.Now().Add(-10 * time.Minute), 1574112309}
 
 	// Spawn a worker for each in the range of workers.
 	for i := 0; i < workers; i++ {

@@ -5,6 +5,7 @@ package main
 // TODO: Implement python webhook calls.
 
 import (
+	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"time"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"context"
@@ -24,6 +25,8 @@ const keyFileName string = "keys.yaml"
 
 // Global shared objects.
 var keys map[interface{}]interface{}
+var telegramBot *tgbotapi.BotAPI
+var chatID int64
 var database *mongo.Database
 
 // postTypes stores a list of nil pointers of each type implementing streamablePost; 
@@ -48,11 +51,11 @@ func databaseWriter(postDownloadQueue <-chan streamablePost, postNotifyQueue cha
 }
 
 func postNotifier(postNotifyQueue <-chan streamablePost) {
-	for range postNotifyQueue {
+	for post := range postNotifyQueue {
 		// TODO: Send web request to the python script
 		
-		// TODO: if positive, send notification.
-
+		// TODO: Check if positive before sending notification.
+		telegramBot.Send(tgbotapi.NewMessage(chatID, post.formatLink()))
 	}
 }
 
@@ -69,12 +72,28 @@ func main() {
 	// Load keys into memory
 	keyFile, err := os.Open(keyFileName)
 	if err != nil {
-		log.Fatalln(err)
+		log.Panicln(err)
 	}
 	keyBytes, _ := ioutil.ReadAll(keyFile)
 	yaml.Unmarshal(keyBytes, &keys)
 
 	keyFile.Close()
+
+	// Create telegram bot object by getting key from the key object.
+	telegramKeys := keys["telegram"].(map[interface{}]interface{})
+	telegramBot, err = tgbotapi.NewBotAPI(telegramKeys["api_key"].(string))
+	if err != nil {
+		log.Panicln(err)
+	}
+	telegramBot.Debug = true
+	chatID = int64(telegramKeys["chat_id"].(int))
+
+	// Connect to mongoDB database.
+	mongoOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	ctx, cancel := context.WithTimeout(context.Background(), mongoConnectTimeout)
+	client, err := mongo.Connect(ctx, mongoOptions)
+	cancel()
+	database = client.Database(databaseName)
 
 	// Make channels for passing around posts.
 	postDownloadQueue := make(chan streamablePost, 100)
@@ -84,19 +103,6 @@ func main() {
 	for _, postType := range postTypes {
 		go postType.createDownloadStream(postDownloadQueue, 1)
 	}
-
-	// //TODO: remove this
-	// for {
-	// 	post := <-postDownloadQueue
-	// 	log.Println(post.formatLink())
-	// }
-
-	// Connect to mongoDB database.
-	mongoOptions := options.Client().ApplyURI("mongodb://localhost:27017")
-	ctx, cancel := context.WithTimeout(context.Background(), mongoConnectTimeout)
-	client, err := mongo.Connect(ctx, mongoOptions)
-	cancel()
-	database = client.Database(databaseName)
 
 	// Spawn the writers.
 	go databaseWriter(postDownloadQueue, postNotifyQueue)

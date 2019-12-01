@@ -73,7 +73,7 @@ func (f dATagQuery) getDAResults(offset int) map[string]interface{} {
 	resp, err := http.Get(fmt.Sprintf("https://www.deviantart.com/api/v1/oauth2/browse/tags?%s", requestSting))
 		
 	if err != nil {
-		log.Fatalln(err)
+		log.Panicln(err)
 	}
 
 	// Decode the results
@@ -119,7 +119,7 @@ func getDeviations(ids []string) []deviation {
 
 	resp, err := http.Get(fmt.Sprintf("https://www.deviantart.com/api/v1/oauth2/deviation/metadata?%s", params.Encode()))
 	if err != nil {
-		log.Fatalln(err)
+		log.Panicln(err)
 	}
 
 
@@ -152,7 +152,7 @@ func getDAAccessToken() {
 						  	bytes.NewBufferString(requestSting))
 		
 	if err != nil {
-		log.Fatalln(err)
+		log.Panicln(err)
 	}
 
 	// Decode the results
@@ -197,7 +197,7 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 				// Parse the published time return value
 				publishedTime, err := strconv.ParseInt(result["published_time"].(string), 10,64)
 				if err != nil {
-					log.Fatalln(err)
+					log.Panicln(err)
 				}
 				// If the result is older than the last parse time, end the query.
 				if publishedTime <= feed.lastPostTime {
@@ -248,7 +248,7 @@ func (deviation) createDownloadStream(downloadQueue chan<- streamablePost, worke
 
 	// TODO: Read follow files from database.
 	dAFollows = make(chan dAFeed, 1)
-	dAFollows <- dAFeed{dATagQuery{tag:"vernid"}, time.Now().Add(-10 * time.Minute), 1574112309}
+	dAFollows <- dAFeed{dATagQuery{tag:"vernid"}, time.Now().Add(-10 * time.Minute), 1575047866}
 
 	// Spawn a worker for each in the range of workers.
 	for i := 0; i < workers; i++ {

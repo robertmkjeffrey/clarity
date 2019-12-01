@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-	"go.mongodb.org/mongo-driver/bson"
 	"strings"
 	"log"
 	"fmt"
@@ -11,8 +9,10 @@ import (
 
 // Send a notification about a post to the telegram chat.
 func sendPost(post streamablePost, score float64) {
+	// Make message with score and link
 	msgText := fmt.Sprintf("Score: %.2f\n%s", score, post.formatLink())
 	msg := tgbotapi.NewMessage(chatID, msgText)
+	// Define inline keyboard
 	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonURL("🔗", post.formatLink()),
@@ -29,29 +29,7 @@ func sendPost(post streamablePost, score float64) {
 	telegramBot.Send(msg)
 }
 
-func deletePost(site string, id string) {
-	collection := database.Collection(fmt.Sprintf("%sPosts", site))
-	_, err := collection.DeleteMany(
-		context.Background(),
-		bson.M{"_id": id},
-	)
-	if err != nil {
-		log.Panicln(err)
-	}
-}
-
-func updatePostNotify(site string, id string, notification bool) {
-	collection := database.Collection(fmt.Sprintf("%sPosts", site))
-	_, err := collection.UpdateOne(
-		context.Background(),
-		bson.M{"_id": id},
-		bson.M{"$set": bson.M{"notify": notification}},
-	)
-	if err != nil {
-		log.Panicln(err)
-	}
-}
-
+// telegramCallbackHandler defines a goroutine that responds to messages and callbacks from the telegram chat.
 func telegramCallbackHandler() {
 	// Create updates channel.
 	u := tgbotapi.NewUpdate(0)
@@ -63,7 +41,9 @@ func telegramCallbackHandler() {
 
 	for update := range updates {
 	switch {
+	// If update is a callback, handle the keyboard button
 	case update.CallbackQuery != nil:
+		// Answer callback.
 		telegramBot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID,update.CallbackQuery.Data))
 		// Switch over each button
 		switch fields := strings.Fields(update.CallbackQuery.Data); fields[0] {
@@ -72,21 +52,30 @@ func telegramCallbackHandler() {
 			telegramBot.DeleteMessage(tgbotapi.NewDeleteMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID))
 			log.Printf("Hide post %s\n", fields[2])
 		case "cb_delete":
+			// Delete post from the database.
 			deletePost(fields[1], fields[2])
 			// Hide message.
 			telegramBot.DeleteMessage(tgbotapi.NewDeleteMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID))
 			log.Printf("Delete post %s\n", fields[2])
 		case "cb_true":
+			// Update post notify status
 			updatePostNotify(fields[1], fields[2], true)
 			log.Printf("Set notification true on post %s\n", fields[2])
 		case "cb_false":
+			// Update post notify status.
 			updatePostNotify(fields[1], fields[2], false)
 			log.Printf("Set notification false on post %s\n", fields[2])
 		}
 
 	case update.Message.IsCommand():
 		//TODO: handle commands
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Try /help for commands.")
+		var msg tgbotapi.MessageConfig
+		switch update.Message.Command(){
+		default:
+			// If command isn't recognised, reply with error.
+			msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Try /help for commands.")		
+			msg.ReplyToMessageID = update.Message.MessageID
+		}
 		telegramBot.Send(msg)
 	}
 	}

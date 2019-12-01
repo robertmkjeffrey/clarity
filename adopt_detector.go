@@ -39,6 +39,7 @@ type streamablePost interface {
 	getID() string // Return the field used as "_id" in the mongodb database.
 }
 
+// databaseWriter defines a goroutine that reads from the download queue, adds each post to the database, then passes it to the notify queue.
 func databaseWriter(postDownloadQueue <-chan streamablePost, postNotifyQueue chan<- streamablePost) {
 	for post := range postDownloadQueue {
 		// Add post to the appropriate collection.
@@ -50,6 +51,7 @@ func databaseWriter(postDownloadQueue <-chan streamablePost, postNotifyQueue cha
 	}
 }
 
+// postNotifier defines a goroutine that reads from the notify queue, classifies it using the python webhook, and then notifies the user if positive.
 func postNotifier(postNotifyQueue <-chan streamablePost) {
 	for post := range postNotifyQueue {
 		// TODO: Send web request to the python script
@@ -61,6 +63,7 @@ func postNotifier(postNotifyQueue <-chan streamablePost) {
 
 func main() {
 
+	// Define command-line options.
 	var init = flag.Bool("init", false, "Initalise all necessary databases and files.")
 
 	if *init {
@@ -110,6 +113,7 @@ func main() {
 	go databaseWriter(postDownloadQueue, postNotifyQueue)
 	go postNotifier(postNotifyQueue)
 
+	// Halt forever, TODO: wait for control-C and start safe shutdown. 
 	select{}
 
 }

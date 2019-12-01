@@ -1,6 +1,5 @@
 package main
 
-// TODO: Make "id" field unqiue https://docs.mongodb.com/manual/core/index-unique/
 // TODO: Implement telegram callbacks.
 // TODO: Implement python webhook calls.
 
@@ -8,8 +7,8 @@ import (
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"time"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"context"
 	"go.mongodb.org/mongo-driver/mongo"
+	"context"
 	"io/ioutil"
 	"os"
 	"fmt"
@@ -20,8 +19,8 @@ import (
 
 // Configuration constants.
 const mongoConnectTimeout = 5 * time.Second
-const databaseName = "adopt-detector"
-const keyFileName string = "keys.yaml"
+const databaseName = "adopt-detector-DB"
+const keyFileName = "keys.yaml"
 
 // Global shared objects.
 var keys map[interface{}]interface{}
@@ -29,7 +28,7 @@ var telegramBot *tgbotapi.BotAPI
 var chatID int64
 var database *mongo.Database
 
-// postTypes stores a list of nil pointers of each type implementing streamablePost; 
+// postTypes stores a list of nil pointers of each type implementing streamablePost to generalise certain operations.
 var postTypes = [...]streamablePost{tweet{}, deviation{}}
 
 // streamablePost represents a post from a website that can be downloaded in a "streamed".
@@ -37,14 +36,14 @@ type streamablePost interface {
 	createDownloadStream(downloadQueue chan<- streamablePost, workers int) // Stream posts from the site and put them into the channel.
 	formatLink() string // Format a link to the post.
 	siteName() string
-	ID() string // Get a unique id for the post.
 }
 
 func databaseWriter(postDownloadQueue <-chan streamablePost, postNotifyQueue chan<- streamablePost) {
 	for post := range postDownloadQueue {
 		// Add post to the appropriate collection.
 		log.Printf("Added %s\n", post.formatLink())
-		database.Collection(post.siteName()).InsertOne(context.TODO(), post)
+		collection := database.Collection(fmt.Sprintf("%s-posts", post.siteName()))
+		collection.InsertOne(context.TODO(), post)
 		// Send request to classifier
 		postNotifyQueue <- post
 	}
@@ -76,7 +75,6 @@ func main() {
 	}
 	keyBytes, _ := ioutil.ReadAll(keyFile)
 	yaml.Unmarshal(keyBytes, &keys)
-
 	keyFile.Close()
 
 	// Create telegram bot object by getting key from the key object.

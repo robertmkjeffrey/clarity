@@ -19,9 +19,5 @@ func (t tweet) formatLink() string {
 }
 
 func (tweet) siteName() string {
-	return "Twitter"
-}
-
-func (t tweet) ID() string {
-	return t.id
+	return "twitter"
 }

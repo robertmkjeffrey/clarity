@@ -264,9 +264,5 @@ func (d deviation) formatLink() string {
 }
 
 func (deviation) siteName() string {
-	return "DeviantArt"
-}
-
-func (d deviation) ID() string {
-	return d.Deviationid
+	return "deviantart"
 }

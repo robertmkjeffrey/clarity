@@ -25,8 +25,3 @@ func (tweet) siteName() string {
 func (t tweet) ID() string {
 	return t.id
 }
-
-func (t tweet) getJSON() []byte {
-	// TODO: Implement
-	return t.json
-}

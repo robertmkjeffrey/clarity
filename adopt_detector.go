@@ -35,7 +35,6 @@ type streamablePost interface {
 	formatLink() string // Format a link to the post.
 	siteName() string
 	ID() string // Get a unique id for the post.
-	getJSON() []byte // Convert the post to a JSON object. JSON should contain a field called "_id" which stores the same ID as above.
 }
 
 func databaseWriter(postDownloadQueue <-chan streamablePost, postNotifyQueue chan<- streamablePost) {

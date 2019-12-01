@@ -270,12 +270,3 @@ func (deviation) siteName() string {
 func (d deviation) ID() string {
 	return d.Deviationid
 }
-
-func (d deviation) getJSON() []byte {
-	// TODO: Implement
-	jsonData, err := json.Marshal(&d)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	return jsonData
-}

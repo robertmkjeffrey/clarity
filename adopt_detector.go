@@ -24,7 +24,7 @@ type streamablePost interface {
 	createDownloadStream(downloadQueue chan<- streamablePost, workers int) // Stream posts from the site and put them into the channel.
 	formatLink() string // Format a link to the post.
 	siteName() string
-	getID() string // Get a unique id for the post.
+	ID() string // Get a unique id for the post.
 	getJSON() []byte // Convert the post to a JSON object. JSON should contain a field called "_id" which stores the same ID as above.
 }
 
@@ -75,15 +75,14 @@ func main() {
 		go postType.createDownloadStream(postDownloadQueue, 1)
 	}
 
-	go databaseWriter(postDownloadQueue, postNotifyQueue)
-	go postNotifier(postNotifyQueue)
-
 	//TODO: remove this
 	for {
 		post := <-postDownloadQueue
-		log.Println(string(post.getJSON()))
 		log.Println(post.formatLink())
 	}
+
+	go databaseWriter(postDownloadQueue, postNotifyQueue)
+	go postNotifier(postNotifyQueue)
 
 	select{}
 

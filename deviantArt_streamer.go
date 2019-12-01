@@ -13,7 +13,7 @@ import (
 )
 
 // Time to wait between polls of deviantArt
-const pollingDelay = 5 * time.Minute
+const pollingDelay = 1 * time.Minute
 
 const urlEncoded = "application/x-www-form-urlencoded"
 var dAFollows chan dAFeed // Circular channel of followed users
@@ -247,8 +247,12 @@ func (deviation) createDownloadStream(downloadQueue chan<- streamablePost, worke
 	}()
 
 	// TODO: Read follow files from database.
-	dAFollows = make(chan dAFeed, 1)
-	dAFollows <- dAFeed{dATagQuery{tag:"vernid"}, time.Now().Add(-10 * time.Minute), 1575047866}
+	tagList := []dAFeed{dAFeed{dATagQuery{tag:"vernid"}, time.Time{}, 1575164938},
+							dAFeed{dATagQuery{tag:"adopt"}, time.Time{}, 1575212293}}
+	dAFollows = make(chan dAFeed, len(tagList))
+	for _, tag := range tagList {
+		dAFollows <- tag
+	}
 
 	// Spawn a worker for each in the range of workers.
 	for i := 0; i < workers; i++ {

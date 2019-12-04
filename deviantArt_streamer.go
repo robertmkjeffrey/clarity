@@ -370,13 +370,23 @@ func handleFollowType(update tgbotapi.Update) (waitForResponse bool, responseHan
 }
 
 func handleAddFeed (feedType string, update tgbotapi.Update) (bool, interface{}) {
-	// TODO: verify query before adding it!
+
+	// Check string contains whitespace, in which case break.
+	if len(strings.Fields(update.Message.Text)) != 1 {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Invalid query - query must not contain whitespace.")
+		telegramBot.Send(msg)
+		return false, nil
+	}
+
+	query := strings.ToLower(update.Message.Text)
+
 	// Create a new feed from the parameters and insert it.
-	newFeed := dAFeed{FeedType: feedType, Query: strings.ToLower(update.Message.Text), LastPostTime:time.Now().Unix(), LastQueryTime:time.Time{}}
+	newFeed := dAFeed{FeedType: feedType, Query: query, LastPostTime:time.Now().Unix(), LastQueryTime:time.Time{}}
 	_, err := database.Collection(feedCollection).InsertOne(context.TODO(), newFeed)
 	if err != nil {
 		log.Panicln(err)
 	}
+	
 	// TODO: Add feed to current buffer. 
 
 	// Send message to confirm.

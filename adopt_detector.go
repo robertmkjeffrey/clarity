@@ -4,6 +4,7 @@ package main
 // TODO: Implement python webhook calls.
 
 import (
+	"os/signal"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"time"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -21,8 +22,10 @@ import (
 const mongoConnectTimeout = 5 * time.Second
 const databaseName = "adopt-detector-DB"
 const keyFileName = "keys.yaml"
+const debug = true
 
 // Global shared objects.
+var shutdownChan chan os.Signal
 var keys map[interface{}]interface{}
 var telegramBot *tgbotapi.BotAPI
 var chatID int64
@@ -114,6 +117,8 @@ func main() {
 	go postNotifier(postNotifyQueue)
 
 	// Halt forever, TODO: wait for control-C and start safe shutdown. 
-	select{}
+	shutdownChan = make(chan os.Signal, 1)
+	signal.Notify(shutdownChan, os.Interrupt)
+	<- shutdownChan
 
 }

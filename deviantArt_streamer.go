@@ -1,6 +1,8 @@
 package main 
 
 import (
+	"go.mongodb.org/mongo-driver/bson"
+	"context"
 	"fmt"
 	"strconv"
 	"encoding/json"
@@ -18,6 +20,7 @@ const pollingDelay = 1 * time.Minute
 
 // Reability constants
 const urlEncoded = "application/x-www-form-urlencoded"
+const feedCollection = "deviantartFeeds"
 
 // Global objects
 var dAFollows chan dAFeed // Circular channel of followed users
@@ -25,19 +28,19 @@ var dAFollows chan dAFeed // Circular channel of followed users
 // deviation implements the streamablePost interface, represeting a post drawn from deviantArt.
 type deviation struct {
 	Deviationid string `json:"deviationid" bson:"_id"`
-	URL string `json:"url"`
-	Author dAUser `json:"author"`
+	URL string `json:"url" bson:"url"`
+	Author dAUser `json:"author" bson:"author"`
 	Title string `json:"title"`
 	Description string `json:"description"`
 	License string `json:"license"`
-	AllowsComments bool `json:"allows_comments"`
+	AllowsComments bool `json:"allows_comments" bson:"allows_comments"`
 	Tags []dATag `json:"tags"`
-	IsMature bool `json:"is_mature"`
+	IsMature bool `json:"is_mature" bson:"is_mature"`
 }
 
 // dATag implements a tag (as part of a deviation)
 type dATag struct {
-	TagName string `json:"tag_name"`
+	TagName string `json:"tag_name" bson:"tag_name"`
 	Sponsored bool `json:"sponsored"`
 	Sponsor string `json:"sponsor"`
 }
@@ -46,30 +49,33 @@ type dATag struct {
 type dAUser struct {
 	Userid string `json:"userid"`
 	Username string `json:"username"`
-	UserType string `json:"type"`	
+	UserType string `json:"type" bson:"user_type"`	
 }
 
 // dAFeed defines a stream to pull data from. It consists of metadata about the previous pull and the query that generates the feed.
 type dAFeed struct {
-	dAFeedQuery
-	lastQueryTime time.Time
-	lastPostTime int64
+	FeedType string `bson:"feed_type"`
+	Query string `bson:"query"`
+	LastQueryTime time.Time `bson:"last_query_time"`
+	LastPostTime int64 `bson:"last_post_time"`
 }
 
-type dAFeedQuery interface {
-	// getDAResults queries deviantArt for the most recent posts from the follow.
-	getDAResults(offset int) map[string]interface{}
-}
-
-// dATagQuery defines a query that follows a specific tag.
-type dATagQuery struct {
-	tag string
-}
-
-func (f dATagQuery) getDAResults(offset int) map[string]interface{} {
-	// Build parameters
+func (f dAFeed) getDAResults(offset int) map[string]interface{} {
+	// Create parameter object to build url
 	params := url.Values{}
-	params.Add("tag", f.tag)
+	var apiURL string
+
+	switch f.FeedType {
+	case "user":
+		params.Add("username", f.Query)
+		apiURL = "https://www.deviantart.com/api/v1/oauth2/gallery/all"
+	case "tag":
+		params.Add("tag", f.Query)
+		apiURL = "https://www.deviantart.com/api/v1/oauth2/browse/tags"
+	default:
+		log.Fatalf("Error: Invalid feed type \"%s\"\n", f.FeedType)
+	}
+	// Build parameters
 	params.Add("offset", strconv.Itoa(offset))
 	
 	dAAccessToken.RLock()
@@ -79,7 +85,7 @@ func (f dATagQuery) getDAResults(offset int) map[string]interface{} {
 	requestSting := params.Encode()
 
 	// Send request
-	resp, err := http.Get(fmt.Sprintf("https://www.deviantart.com/api/v1/oauth2/browse/tags?%s", requestSting))
+	resp, err := http.Get(fmt.Sprintf("%s?%s", apiURL, requestSting))
 		
 	if err != nil {
 		log.Panicln(err)
@@ -92,39 +98,6 @@ func (f dATagQuery) getDAResults(offset int) map[string]interface{} {
 
 	return result
 }
-
-// dAUserQuery defines a query that follows a specific user's gallary.
-type dAUserQuery struct {
-	user string
-}
-
-func (f dAUserQuery) getDAResults(offset int) map[string]interface{} {
-	// Build parameters
-	params := url.Values{}
-	params.Add("username", f.user)
-	params.Add("offset", strconv.Itoa(offset))
-	
-	dAAccessToken.RLock()
-	params.Add("access_token", dAAccessToken.token)
-	dAAccessToken.RUnlock()
-
-	requestSting := params.Encode()
-
-	// Send request
-	resp, err := http.Get(fmt.Sprintf("https://www.deviantart.com/api/v1/oauth2/gallery/all?%s", requestSting))
-		
-	if err != nil {
-		log.Panicln(err)
-	}
-
-	// Decode the results
-	var result map[string]interface{}
-	
-	json.NewDecoder(resp.Body).Decode(&result)
-	
-	return result
-}
-
 
 // Global variable for access token storage.
 var dAAccessToken struct {
@@ -178,13 +151,17 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 		// Get the next search and wait until the next polling opportunity
 		feed := <-dAFollows
 		// Wait for polling time from last query
-		<-time.After(pollingDelay - time.Since(feed.lastQueryTime))
+		<-time.After(pollingDelay - time.Since(feed.LastQueryTime))
+
+		if debug {
+			log.Printf("Polling deviantart feed \"%s\"\n", feed.Query)
+		}
 		
 		// Store the new ids to analyse in one go.
 		newIDs := make([]string, 0)
 		postURLs := make(map[string]string)
 
-		newLastPostTime := feed.lastPostTime
+		newLastPostTime := feed.LastPostTime
 		offset := 0
 		dAResultParseLoop:
 		for {
@@ -200,7 +177,7 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 					log.Panicln(err)
 				}
 				// If the result is older than the last parse time, end the query.
-				if publishedTime <= feed.lastPostTime {
+				if publishedTime <= feed.LastPostTime {
 					break dAResultParseLoop
 				}
 
@@ -218,8 +195,16 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 			offset = int(query["next_offset"].(float64))
 		}
 		// Set the lastQueryTime and lastPostTime to the current values
-		feed.lastQueryTime = time.Now()
-		feed.lastPostTime = newLastPostTime
+		feed.LastQueryTime = time.Now()
+		feed.LastPostTime = newLastPostTime
+
+		// Update the feed object in the database.
+		filter := bson.M{"feed_type":feed.FeedType, "query":feed.Query}
+		update := bson.M{"$set": bson.M{"last_query_time": feed.LastQueryTime, "last_post_time":feed.LastPostTime}}
+		_, err := database.Collection(feedCollection).UpdateOne(context.TODO(), filter, update)
+		if err != nil {
+			log.Panicln(err)
+		}
 
 		// Get the deviation objects.
 		newDeviations := getDeviations(newIDs)
@@ -276,6 +261,11 @@ func getDAAccessToken() {
 	
 }
 
+
+func dASupervisor() {
+	// TODO: Implement
+}
+
 // createDownloadStream spawns goroutines to follow the deviantart streams.
 func (deviation) createDownloadStream(downloadQueue chan<- streamablePost, workers int) {
 
@@ -290,14 +280,28 @@ func (deviation) createDownloadStream(downloadQueue chan<- streamablePost, worke
 		}
 	}()
 
-	// TODO: Read follow files from database.
-	tagList := []dAFeed{dAFeed{dATagQuery{tag:"vernid"}, time.Time{}, 1575047866},
-							dAFeed{dAUserQuery{user:"LiLaiRa"}, time.Time{}, 1575090419},}
+	// Spawn a supervisor task
+	go dASupervisor()
+
+	// Read follow files from database and add to queue.
+	var tagList []dAFeed
+	cursor, err := database.Collection(feedCollection).Find(context.TODO(), bson.D{})
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// Decode all results
+	err = cursor.All(context.TODO(), &tagList)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// Create the follow queue and add all tags to it.
 	dAFollows = make(chan dAFeed, len(tagList))
 	for _, tag := range tagList {
 		dAFollows <- tag
 	}
-
+	
 	// Spawn a worker for each in the range of workers.
 	for i := 0; i < workers; i++ {
 		go dADownloadWorker(downloadQueue)

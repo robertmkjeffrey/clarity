@@ -31,15 +31,17 @@ var telegramBot *tgbotapi.BotAPI
 var chatID int64
 var database *mongo.Database
 
-// postTypes stores a list of nil pointers of each type implementing streamablePost to generalise certain operations.
-var postTypes = [...]streamablePost{tweet{}, deviation{}}
+// siteTypes stores a list of nil pointers of each type implementing streamablePost to generalise certain operations.
+var siteTypes = [...]streamablePost{deviation{}}
 
 // streamablePost represents a post from a website that can be downloaded in a "streamed".
 type streamablePost interface {
 	createDownloadStream(downloadQueue chan<- streamablePost, workers int) // Stream posts from the site and put them into the channel.
 	formatLink() string // Format a link to the post.
-	siteName() string
+	siteName() string // Return a computer-ready version of the site name (lowercase, no hypens etc.)
+	prettySiteName() string // Return a pretty version of the site name (e.g. with capitalisation)
 	getID() string // Return the field used as "_id" in the mongodb database.
+	addFollowHandler() func(tgbotapi.Update) (bool, interface{}) // Start the process of adding a follow through the telegram bot.
 }
 
 // databaseWriter defines a goroutine that reads from the download queue, adds each post to the database, then passes it to the notify queue.
@@ -108,7 +110,7 @@ func main() {
 	postNotifyQueue := make(chan streamablePost, 100)
 
 	// Create a stream for each type of post to be downloaded.
-	for _, postType := range postTypes {
+	for _, postType := range siteTypes {
 		go postType.createDownloadStream(postDownloadQueue, 1)
 	}
 

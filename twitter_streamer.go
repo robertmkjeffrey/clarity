@@ -22,6 +22,10 @@ func (tweet) siteName() string {
 	return "twitter"
 }
 
+func (tweet) prettySiteName() string {
+	return "Twitter"
+}
+
 func (t tweet) getID() string {
 	return string(t.id) 
 }

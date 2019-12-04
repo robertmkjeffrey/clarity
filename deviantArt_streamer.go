@@ -1,6 +1,8 @@
 package main 
 
 import (
+	"strings"
+	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"go.mongodb.org/mongo-driver/bson"
 	"context"
 	"fmt"
@@ -73,7 +75,7 @@ func (f dAFeed) getDAResults(offset int) map[string]interface{} {
 		params.Add("tag", f.Query)
 		apiURL = "https://www.deviantart.com/api/v1/oauth2/browse/tags"
 	default:
-		log.Fatalf("Error: Invalid feed type \"%s\"\n", f.FeedType)
+		log.Panicf("Error: Invalid feed type \"%s\"\n", f.FeedType)
 	}
 	// Build parameters
 	params.Add("offset", strconv.Itoa(offset))
@@ -190,6 +192,10 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 				// Add the new post to the newID string
 				newIDs = append(newIDs, deviationid)
 				postURLs[deviationid] = result["url"].(string)
+			}
+			// If we're out of posts, quit the loop.
+			if !query["has_more"].(bool) {
+				break dAResultParseLoop
 			}
 			// If we haven't hit old posts yet, move to the next page.
 			offset = int(query["next_offset"].(float64))
@@ -319,6 +325,62 @@ func (deviation) siteName() string {
 	return "deviantart"
 }
 
+func (deviation) prettySiteName() string {
+	return "DeviantArt"
+}
+
 func (d deviation) getID() string {
 	return d.Deviationid
+}
+
+func (deviation) addFollowHandler() func(tgbotapi.Update) (bool, interface{}) {
+	msg := tgbotapi.NewMessage(chatID, "What type of follow would you like to add?")
+	replyKeyboard := tgbotapi.NewReplyKeyboard(tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Tag")),
+											   tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("User")))
+	replyKeyboard.OneTimeKeyboard = true
+	replyKeyboard.ResizeKeyboard = true
+	msg.ReplyMarkup = replyKeyboard
+
+	telegramBot.Send(msg)
+	return handleFollowType
+}
+
+func handleFollowType(update tgbotapi.Update) (waitForResponse bool, responseHandler interface{}) {
+	var msg tgbotapi.MessageConfig
+	switch update.Message.Text {
+	case "Tag":
+		msg = tgbotapi.NewMessage(update.Message.Chat.ID, "And what tag would you like to follow?")
+		waitForResponse = true
+		responseHandler = func(update tgbotapi.Update) (bool, interface{}) {
+			return handleAddFeed("tag", update)
+		}
+	case "User":
+		msg = tgbotapi.NewMessage(update.Message.Chat.ID, "And what user would you like to follow?")
+		waitForResponse = true
+		responseHandler = func(update tgbotapi.Update) (bool, interface{}) {
+			return handleAddFeed("user", update)
+		}
+	default:
+		msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I don't recognise that follow type. Please start again.")
+		waitForResponse = false
+		responseHandler = interface{}(nil)
+	}
+	telegramBot.Send(msg)
+	return
+}
+
+func handleAddFeed (feedType string, update tgbotapi.Update) (bool, interface{}) {
+	// TODO: verify query before adding it!
+	// Create a new feed from the parameters and insert it.
+	newFeed := dAFeed{FeedType: feedType, Query: strings.ToLower(update.Message.Text), LastPostTime:time.Now().Unix(), LastQueryTime:time.Time{}}
+	_, err := database.Collection(feedCollection).InsertOne(context.TODO(), newFeed)
+	if err != nil {
+		log.Panicln(err)
+	}
+	// TODO: Add feed to current buffer. 
+
+	// Send message to confirm.
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Added %s feed with query \"%s\"!", feedType, update.Message.Text))
+	telegramBot.Send(msg)
+	return false, nil
 }

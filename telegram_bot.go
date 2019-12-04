@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"strings"
 	"log"
 	"fmt"
@@ -29,6 +30,41 @@ func sendPost(post streamablePost, score float64) {
 	telegramBot.Send(msg)
 }
 
+func siteSelectKeyboard () tgbotapi.ReplyKeyboardMarkup {
+	keyboard := tgbotapi.ReplyKeyboardMarkup{}
+	keyboard.OneTimeKeyboard = true
+	keyboard.ResizeKeyboard = true
+	keyboard.Selective = false
+	for _, site := range siteTypes {
+		keyboard.Keyboard = append(keyboard.Keyboard, tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(site.prettySiteName())))
+	}
+	return keyboard
+} 
+
+func parseSiteName(text string) (streamablePost, error) {
+	for _, site := range siteTypes {
+		if text == site.siteName() || text == site.prettySiteName() {
+			return site, nil
+		}
+	}
+	return nil, errors.New("invalid site name")
+} 
+
+func followHandler(update tgbotapi.Update) (waitForResponse bool, responseHandler interface{}) {
+	
+	site, returnErr := parseSiteName(update.Message.Text) 
+	if returnErr != nil {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Invalid site name, please restart. ")		
+		_, err := telegramBot.Send(msg)
+		if err != nil {
+			log.Panicln(err)
+		}
+		return false, nil
+	}
+
+	return true, site.addFollowHandler()
+}
+
 // telegramCallbackHandler defines a goroutine that responds to messages and callbacks from the telegram chat.
 func telegramCallbackHandler() {
 	// Create updates channel.
@@ -39,10 +75,15 @@ func telegramCallbackHandler() {
 		log.Panicln(err)
 	}
 
+	// Keep track of a if there's an expected response.
+	var waitingForResponse bool = false
+	// Function to handle next step in a thread of commands.
+	var responseHandler func(tgbotapi.Update) (bool, interface{})
+
 	for update := range updates {
 	switch {
-	// If update is a callback, handle the keyboard button
-	case update.CallbackQuery != nil:
+	case update.CallbackQuery != nil:	
+		// If update is a callback, handle the keyboard button
 		// Answer callback.
 		telegramBot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID,update.CallbackQuery.Data))
 		// Switch over each button
@@ -68,15 +109,39 @@ func telegramCallbackHandler() {
 		}
 
 	case update.Message.IsCommand():
-		//TODO: handle commands
+		// handle commands
 		var msg tgbotapi.MessageConfig
 		switch update.Message.Command(){
+		case "follow":
+			// Open a dialogue to add a new query to the follow list.
+			msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Which site do you want to add a follow for?")
+			msg.ReplyMarkup = siteSelectKeyboard()
+			// Save that we're waiting for a response.
+			waitingForResponse = true
+			responseHandler = followHandler
 		default:
 			// If command isn't recognised, reply with error.
 			msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Try /help for commands.")		
-			msg.ReplyToMessageID = update.Message.MessageID
 		}
-		telegramBot.Send(msg)
+		_, err := telegramBot.Send(msg)
+		if err != nil {
+			log.Panicln(err)
+		}
+
+	case update.Message != nil && waitingForResponse:
+		// If waiting for a response and got a message, run the response handler. 
+		waitingForResponse, newResponseHandler := responseHandler(update)
+		// If still waiting for a response, cast the handler.
+		if waitingForResponse {
+			responseHandler = newResponseHandler.(func(tgbotapi.Update) (bool, interface{}))
+		}
+	default:
+		// If command isn't recognised, reply with error.
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Try /help for commands.")		
+		_, err := telegramBot.Send(msg)
+		if err != nil {
+			log.Panicln(err)
+		}
 	}
 	}
 }

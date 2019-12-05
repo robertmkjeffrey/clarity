@@ -79,6 +79,7 @@ func (f dAFeed) getDAResults(offset int) map[string]interface{} {
 	}
 	// Build parameters
 	params.Add("offset", strconv.Itoa(offset))
+	params.Add("mature_content", "true")
 	
 	dAAccessToken.RLock()
 	params.Add("access_token", dAAccessToken.token)
@@ -121,6 +122,7 @@ func getDeviations(ids []string) []deviation {
 
 	// Build parameter list
 	params := url.Values{}
+	params.Add("mature_content", "true")
 	for _, id := range ids {
 		params.Add("deviationids[]", id)
 	}
@@ -171,8 +173,15 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 			query := feed.getDAResults(offset)
 			results := query["results"].([]interface{})
 
+			// If the result list is empty, skip.
+			if len(results) == 0 {
+				log.Printf("Skipping query %s (empty result list).\n", feed.Query)
+				break dAResultParseLoop
+			}
+
 			for _, result := range results {
 				result := result.(map[string]interface{})
+				
 				// Parse the published time return value
 				publishedTime, err := strconv.ParseInt(result["published_time"].(string), 10,64)
 				if err != nil {

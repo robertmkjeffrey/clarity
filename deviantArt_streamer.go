@@ -157,8 +157,9 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 
 	for {
 		// Get the next search and wait until the next polling opportunity
-		dAFollows.RLock() // Lock and unlock at beginning and end so that the channel isn't expanded while an element is removed.
+		dAFollows.RLock() 
 		feed := <-dAFollows.feedChannel
+		dAFollows.RUnlock()
 		// Wait for polling time from last query
 		<-time.After(pollingDelay - time.Since(feed.LastQueryTime))
 
@@ -237,6 +238,7 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 		}
 
 		// Put the current seach back into the queue.
+		dAFollows.RLock()
 		dAFollows.feedChannel <- feed
 		dAFollows.RUnlock()
 	}
@@ -418,10 +420,9 @@ func handleAddFeed (feedType string, update tgbotapi.Update) (bool, interface{})
 	newChan := make(chan dAFeed, cap(dAFollows.feedChannel) + 1)
 	newChan <- newFeed
 	// Put each of the previous feeds into the new channel.
-	for i := 0; i < cap(dAFollows.feedChannel); i++ {
-		tmp := <- dAFollows.feedChannel
-		log.Printf("Moved query %s.", tmp.Query)
-		newChan <- tmp
+	currentFeeds := len(dAFollows.feedChannel)
+	for i := 0; i < currentFeeds; i++ {
+		newChan <-<- dAFollows.feedChannel
 	}
 	dAFollows.feedChannel = newChan
 	dAFollows.Unlock()

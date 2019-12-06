@@ -85,7 +85,7 @@ func telegramCallbackHandler() {
 	case update.CallbackQuery != nil:	
 		// If update is a callback, handle the keyboard button
 		// Answer callback.
-		telegramBot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID,update.CallbackQuery.Data))
+		telegramBot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID,""))
 		// Switch over each button
 		switch fields := strings.Fields(update.CallbackQuery.Data); fields[0] {
 		case "cb_hide":

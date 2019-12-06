@@ -24,8 +24,12 @@ const pollingDelay = 1 * time.Minute
 const urlEncoded = "application/x-www-form-urlencoded"
 const feedCollection = "deviantartFeeds"
 
+
 // Global objects
-var dAFollows chan dAFeed // Circular channel of followed users
+var dAFollows struct {
+	sync.RWMutex
+	feedChannel chan dAFeed // Circular channel of followed users
+}
 
 // deviation implements the streamablePost interface, represeting a post drawn from deviantArt.
 type deviation struct {
@@ -153,12 +157,13 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 
 	for {
 		// Get the next search and wait until the next polling opportunity
-		feed := <-dAFollows
+		dAFollows.RLock() // Lock and unlock at beginning and end so that the channel isn't expanded while an element is removed.
+		feed := <-dAFollows.feedChannel
 		// Wait for polling time from last query
 		<-time.After(pollingDelay - time.Since(feed.LastQueryTime))
 
 		if debug {
-			log.Printf("Polling deviantart feed \"%s\"\n", feed.Query)
+			log.Printf("Polling deviantart feed \"%s\"\n", feed.Query)	
 		}
 		
 		// Store the new ids to analyse in one go.
@@ -232,7 +237,8 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 		}
 
 		// Put the current seach back into the queue.
-		dAFollows <- feed
+		dAFollows.feedChannel <- feed
+		dAFollows.RUnlock()
 	}
 }
 
@@ -311,11 +317,13 @@ func (deviation) createDownloadStream(downloadQueue chan<- streamablePost, worke
 		log.Fatalln(err)
 	}
 
+	dAFollows.Lock()
 	// Create the follow queue and add all tags to it.
-	dAFollows = make(chan dAFeed, len(tagList))
+	dAFollows.feedChannel = make(chan dAFeed, len(tagList))
 	for _, tag := range tagList {
-		dAFollows <- tag
+		dAFollows.feedChannel <- tag
 	}
+	dAFollows.Unlock()
 	
 	// Spawn a worker for each in the range of workers.
 	for i := 0; i < workers; i++ {
@@ -395,11 +403,28 @@ func handleAddFeed (feedType string, update tgbotapi.Update) (bool, interface{})
 	if err != nil {
 		log.Panicln(err)
 	}
-	
-	// TODO: Add feed to current buffer. 
 
 	// Send message to confirm.
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Added %s feed with query \"%s\"!", feedType, update.Message.Text))
-	telegramBot.Send(msg)
+	_, err = telegramBot.Send(msg)
+	if err != nil {
+		log.Panicln(err)
+	}
+
+	// Expand the current buffer and add the new feed, 
+	// Note - we do this after sending the message this can take a while (has to aquire global lock on the feed channel).
+	dAFollows.Lock()
+	// Expand buffer by one
+	newChan := make(chan dAFeed, cap(dAFollows.feedChannel) + 1)
+	newChan <- newFeed
+	// Put each of the previous feeds into the new channel.
+	for i := 0; i < cap(dAFollows.feedChannel); i++ {
+		tmp := <- dAFollows.feedChannel
+		log.Printf("Moved query %s.", tmp.Query)
+		newChan <- tmp
+	}
+	dAFollows.feedChannel = newChan
+	dAFollows.Unlock()
+
 	return false, nil
 }

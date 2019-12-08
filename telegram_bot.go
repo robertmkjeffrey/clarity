@@ -86,32 +86,47 @@ func telegramCallbackHandler() {
 		// If update is a callback, handle the keyboard button
 		// Answer callback.
 		telegramBot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID,""))
+		
+		fields := strings.Fields(update.CallbackQuery.Data);
+		button := fields[0]
+		site := fields[1]
+		id := fields[2]
 		// Switch over each button
-		switch fields := strings.Fields(update.CallbackQuery.Data); fields[0] {
+		switch button {
 		case "cb_hide":
 			// Hide message
 			telegramBot.DeleteMessage(tgbotapi.NewDeleteMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID))
-			log.Printf("Hide post %s\n", fields[2])
+			log.Printf("Hide post %s\n", id)
 		case "cb_delete":
 			// Delete post from the database.
-			deletePost(fields[1], fields[2])
+			deletePost(site, id)
 			// Hide message.
 			telegramBot.DeleteMessage(tgbotapi.NewDeleteMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID))
-			log.Printf("Delete post %s\n", fields[2])
+			log.Printf("Delete post %s\n", id)
 		case "cb_true":
 			// Update post notify status
-			updatePostNotify(fields[1], fields[2], true)
-			log.Printf("Set notification true on post %s\n", fields[2])
+			updatePostNotify(site, id, true)
+			log.Printf("Set notification true on post %s\n", id)
 		case "cb_false":
 			// Update post notify status.
-			updatePostNotify(fields[1], fields[2], false)
-			log.Printf("Set notification false on post %s\n", fields[2])
+			updatePostNotify(site, id, false)
+			log.Printf("Set notification false on post %s\n", id)
 		}
 
-	case update.Message.IsCommand():
+	case update.Message != nil && waitingForResponse:
+		// If waiting for a response and got a message, run the response handler. 
+		waitingForResponse, newResponseHandler := responseHandler(update)
+		// If still waiting for a response, cast the handler.
+		if waitingForResponse {
+			responseHandler = newResponseHandler.(func(tgbotapi.Update) (bool, interface{}))
+		}
+
+	case update.Message != nil && update.Message.IsCommand():
 		// handle commands
 		var msg tgbotapi.MessageConfig
 		switch update.Message.Command(){
+		case "start":
+			msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Welcome! Try /help to get a list of commands.")
 		case "follow":
 			// Open a dialogue to add a new query to the follow list.
 			msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Which site do you want to add a follow for?")
@@ -128,13 +143,6 @@ func telegramCallbackHandler() {
 			log.Panicln(err)
 		}
 
-	case update.Message != nil && waitingForResponse:
-		// If waiting for a response and got a message, run the response handler. 
-		waitingForResponse, newResponseHandler := responseHandler(update)
-		// If still waiting for a response, cast the handler.
-		if waitingForResponse {
-			responseHandler = newResponseHandler.(func(tgbotapi.Update) (bool, interface{}))
-		}
 	default:
 		// If command isn't recognised, reply with error.
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Try /help for commands.")		

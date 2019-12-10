@@ -118,6 +118,14 @@ func main() {
 	go databaseWriter(postDownloadQueue, postNotifyQueue)
 	go postNotifier(postNotifyQueue)
 
+	// Defer a shutdown message to send the panic to the user and then repanic.
+	defer func() {
+		if r := recover(); r != nil {
+			sendShutdownMessage(r)
+			panic(r)
+		}
+	} ()
+
 	// Halt forever, TODO: wait for control-C and start safe shutdown. 
 	shutdownChan = make(chan os.Signal, 1)
 	signal.Notify(shutdownChan, os.Interrupt)

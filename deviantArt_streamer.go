@@ -177,7 +177,16 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 		for {
 			// Pull from feed and extract results.
 			query := feed.getDAResults(offset)
-			results := query["results"].([]interface{})
+			// TODO: Remove this type switch after finding the error (DEBUG)
+			var results []interface{}
+			switch r := query["results"].(type) {
+			case []interface{}:
+				results = r
+			case nil:
+				log.Println("Got nil results!")
+				log.Fatalln(query)
+			}
+			// results := query["results"].([]interface{})
 
 			// If the result list is empty, skip.
 			if len(results) == 0 {

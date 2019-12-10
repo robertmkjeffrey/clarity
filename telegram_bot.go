@@ -8,6 +8,13 @@ import (
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
+func sendShutdownMessage(r interface{}) {
+	msgText := fmt.Sprint("Panic! Shuting down with following panic: /n", fmt.Sprint(r))
+	msg := tgbotapi.NewMessage(chatID, msgText)
+
+	telegramBot.Send(msg)
+}
+
 // Send a notification about a post to the telegram chat.
 func sendPost(post streamablePost, score float64) {
 	// Make message with score and link

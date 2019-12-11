@@ -1,6 +1,7 @@
 package main 
 
 import (
+	"math"
 	"strings"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"go.mongodb.org/mongo-driver/bson"
@@ -93,7 +94,18 @@ func (f dAFeed) getDAResults(offset int) map[string]interface{} {
 
 	// Send request
 	resp, err := http.Get(fmt.Sprintf("%s?%s", apiURL, requestSting))
-		
+	// Every time response fails, do exponential backoff and retry
+	attempts := 1
+	for err != nil && attempts < 10	{
+		// Calculate sleep time (2 ^ attempts)
+		backoff := int(math.Pow(float64(2), float64(attempts)))
+		log.Printf("Failed query to %v, retrying in %v seconds.", f.Query, backoff)
+		time.Sleep(time.Duration(backoff) * time.Second)
+		// Make response
+		resp, err = http.Get(fmt.Sprintf("%s?%s", apiURL, requestSting))	
+		attempts++
+	}
+	// If after 10 attempts the error is still present, throw it.
 	if err != nil {
 		log.Panicln(err)
 	}

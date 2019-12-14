@@ -22,7 +22,7 @@ import (
 const mongoConnectTimeout = 5 * time.Second
 const databaseName = "adopt-detector-DB"
 const keyFileName = "keys.yaml"
-const debug = true
+const debug = false
 
 // Global shared objects.
 var shutdownChan chan os.Signal

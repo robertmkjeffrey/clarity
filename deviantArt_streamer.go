@@ -196,7 +196,8 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 				results = r
 			case nil:
 				log.Println("Got nil results!")
-				log.Fatalln(query)
+				log.Println("Query: ", query)
+				continue
 			}
 			// results := query["results"].([]interface{})
 

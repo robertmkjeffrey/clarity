@@ -5,7 +5,7 @@ app = Flask(__name__)
 def handle_retrain():
     """
     """
-    site = request.args.get("site_name")
+    site = request.args.get("site")
     if site is None:
         return {"error":"invalid_request", "error_description":"Must provide the site to rebuild model for."}
     # TODO: Rebuild model.
@@ -20,8 +20,8 @@ def handle_classify():
     if post_id is None:
         return {"error":"invalid_request", "error_description":"Must provide an id to be classified."}
     
-    siteName = request.args.get("site_name")
-    if siteName is None:
+    site = request.args.get("site")
+    if site is None:
         return {"error":"invalid_request", "error_description":"Must provide the site associated with the id."}
 
     # TODO: Request data from database
@@ -29,7 +29,9 @@ def handle_classify():
     score = 0.69
     notify = True
 
-    return {"id" : post_id, "site_name": siteName, "notify": notify, "score" : score}
+    return {"id" : str(post_id), "site": site, "notify": notify, "score" : score}
+
+print("Starting...")
 
 if __name__ == "__main__":
     app.run()

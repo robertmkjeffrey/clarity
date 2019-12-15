@@ -4,6 +4,10 @@ package main
 // TODO: Implement python webhook calls.
 
 import (
+	"os/exec"
+	"encoding/json"
+	"net/http"
+	"net/url"
 	"os/signal"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"time"
@@ -44,6 +48,14 @@ type streamablePost interface {
 	addFollowHandler() func(tgbotapi.Update) (bool, interface{}) // Start the process of adding a follow through the telegram bot.
 }
 
+// webhookHandler starts the ml_webhook python server to handle classification requests.
+func webhookHandler() {
+	// TODO: Check
+	cmd := exec.Command("python", "ml_webhook.py")
+	fmt.Println("Starting python script.")
+	cmd.Run()
+}
+
 // databaseWriter defines a goroutine that reads from the download queue, adds each post to the database, then passes it to the notify queue.
 func databaseWriter(postDownloadQueue <-chan streamablePost, postNotifyQueue chan<- streamablePost) {
 	for post := range postDownloadQueue {
@@ -60,9 +72,29 @@ func databaseWriter(postDownloadQueue <-chan streamablePost, postNotifyQueue cha
 func postNotifier(postNotifyQueue <-chan streamablePost) {
 	for post := range postNotifyQueue {
 		// TODO: Send web request to the python script
-		
-		// TODO: Check if positive before sending notification.
-		sendPost(post, 0.0)
+		params := url.Values{}
+		params.Add("id", post.getID())
+		params.Add("site", post.siteName())
+		requestParams := params.Encode()
+		resp, err := http.Get(fmt.Sprintf("http://localhost:5000/classify?%s", requestParams))
+		if err != nil {
+			log.Panicln(err)
+		}
+		// Decode the results
+		var result struct {
+			ID string
+			Site string
+			Notify bool
+			Score float64
+		}
+	
+		json.NewDecoder(resp.Body).Decode(&result)
+		fmt.Println(result)
+
+		// Check if positive before sending notification.
+		if result.Notify {
+			sendPost(post, result.Score)
+		}
 	}
 }
 
@@ -105,6 +137,9 @@ func main() {
 	// Spawn callback handler
 	go telegramCallbackHandler()
 	
+	// Start webhook handler
+	go webhookHandler()
+
 	// Make channels for passing around posts.
 	postDownloadQueue := make(chan streamablePost, 100)
 	postNotifyQueue := make(chan streamablePost, 100)

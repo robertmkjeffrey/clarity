@@ -20,6 +20,8 @@ import (
 // Configuration constants
 // Time to wait between polls of deviantArt
 const pollingDelay = 1 * time.Minute
+// Maximum number of pages to download before ending
+const maxPages = 10
 
 // Reability constants
 const urlEncoded = "application/x-www-form-urlencoded"
@@ -186,7 +188,7 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 		newLastPostTime := feed.LastPostTime
 		offset := 0
 		dAResultParseLoop:
-		for {
+		for page := 0; page < maxPages; page++ {
 			// Pull from feed and extract results.
 			query := feed.getDAResults(offset)
 			// TODO: Remove this type switch after finding the error (DEBUG)

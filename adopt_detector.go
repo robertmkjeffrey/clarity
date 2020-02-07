@@ -26,7 +26,6 @@ import (
 const mongoConnectTimeout = 5 * time.Second
 const databaseName = "adopt-detector-DB"
 const keyFileName = "keys.yaml"
-const debug = false
 
 // Global shared objects.
 var shutdownChan chan os.Signal
@@ -34,6 +33,7 @@ var keys map[interface{}]interface{}
 var telegramBot *tgbotapi.BotAPI
 var chatID int64
 var database *mongo.Database
+var debug = false
 
 // siteTypes stores a list of nil pointers of each type implementing streamablePost to generalise certain operations.
 var siteTypes = [...]streamablePost{deviation{}}
@@ -102,6 +102,12 @@ func main() {
 
 	// Define command-line options.
 	var init = flag.Bool("init", false, "Initalise all necessary databases and files.")
+	var debugFlag = flag.Bool("debug", false, "Log more information to the terminal.")
+
+	// Parse flags
+	flag.Parse()
+
+	debug = *debugFlag
 
 	if *init {
 		//TODO: run setup code

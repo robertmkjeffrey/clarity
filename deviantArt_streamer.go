@@ -1,32 +1,33 @@
-package main 
+package main
 
 import (
-	"math"
-	"strings"
-	"github.com/go-telegram-bot-api/telegram-bot-api"
-	"go.mongodb.org/mongo-driver/bson"
-	"context"
-	"fmt"
-	"strconv"
-	"encoding/json"
-	"log"
 	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"math"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // Configuration constants
 // Time to wait between polls of deviantArt
-const pollingDelay = 1 * time.Minute
+const pollingDelay = 5 * time.Minute
+
 // Maximum number of pages to download before ending
 const maxPages = 10
 
 // Reability constants
 const urlEncoded = "application/x-www-form-urlencoded"
 const feedCollection = "deviantartFeeds"
-
 
 // Global objects
 var dAFollows struct {
@@ -36,37 +37,37 @@ var dAFollows struct {
 
 // deviation implements the streamablePost interface, represeting a post drawn from deviantArt.
 type deviation struct {
-	Deviationid string `json:"deviationid" bson:"_id"`
-	URL string `json:"url" bson:"url"`
-	Author dAUser `json:"author" bson:"author"`
-	Title string `json:"title"`
-	Description string `json:"description"`
-	License string `json:"license"`
-	AllowsComments bool `json:"allows_comments" bson:"allows_comments"`
-	Tags []dATag `json:"tags"`
-	IsMature bool `json:"is_mature" bson:"is_mature"`
+	Deviationid    string  `json:"deviationid" bson:"_id"`
+	URL            string  `json:"url" bson:"url"`
+	Author         dAUser  `json:"author" bson:"author"`
+	Title          string  `json:"title"`
+	Description    string  `json:"description"`
+	License        string  `json:"license"`
+	AllowsComments bool    `json:"allows_comments" bson:"allows_comments"`
+	Tags           []dATag `json:"tags"`
+	IsMature       bool    `json:"is_mature" bson:"is_mature"`
 }
 
 // dATag implements a tag (as part of a deviation)
 type dATag struct {
-	TagName string `json:"tag_name" bson:"tag_name"`
-	Sponsored bool `json:"sponsored"`
-	Sponsor string `json:"sponsor"`
+	TagName   string `json:"tag_name" bson:"tag_name"`
+	Sponsored bool   `json:"sponsored"`
+	Sponsor   string `json:"sponsor"`
 }
 
 // dAUser implements a user (as part of a deviation)
 type dAUser struct {
-	Userid string `json:"userid"`
+	Userid   string `json:"userid"`
 	Username string `json:"username"`
-	UserType string `json:"type" bson:"user_type"`	
+	UserType string `json:"type" bson:"user_type"`
 }
 
 // dAFeed defines a stream to pull data from. It consists of metadata about the previous pull and the query that generates the feed.
 type dAFeed struct {
-	FeedType string `bson:"feed_type"`
-	Query string `bson:"query"`
+	FeedType      string    `bson:"feed_type"`
+	Query         string    `bson:"query"`
 	LastQueryTime time.Time `bson:"last_query_time"`
-	LastPostTime int64 `bson:"last_post_time"`
+	LastPostTime  int64     `bson:"last_post_time"`
 }
 
 func (f dAFeed) getDAResults(offset int) map[string]interface{} {
@@ -87,7 +88,7 @@ func (f dAFeed) getDAResults(offset int) map[string]interface{} {
 	// Build parameters
 	params.Add("offset", strconv.Itoa(offset))
 	params.Add("mature_content", "true")
-	
+
 	dAAccessToken.RLock()
 	params.Add("access_token", dAAccessToken.token)
 	dAAccessToken.RUnlock()
@@ -98,13 +99,13 @@ func (f dAFeed) getDAResults(offset int) map[string]interface{} {
 	resp, err := http.Get(fmt.Sprintf("%s?%s", apiURL, requestSting))
 	// Every time response fails, do exponential backoff and retry
 	attempts := 1
-	for err != nil && attempts < 10	{
+	for err != nil && attempts < 10 {
 		// Calculate sleep time (2 ^ attempts)
 		backoff := int(math.Pow(float64(2), float64(attempts)))
 		log.Printf("Failed query to %v, retrying in %v seconds.", f.Query, backoff)
 		time.Sleep(time.Duration(backoff) * time.Second)
 		// Make response
-		resp, err = http.Get(fmt.Sprintf("%s?%s", apiURL, requestSting))	
+		resp, err = http.Get(fmt.Sprintf("%s?%s", apiURL, requestSting))
 		attempts++
 	}
 	// If after 10 attempts the error is still present, throw it.
@@ -114,7 +115,7 @@ func (f dAFeed) getDAResults(offset int) map[string]interface{} {
 
 	// Decode the results
 	var result map[string]interface{}
-	
+
 	json.NewDecoder(resp.Body).Decode(&result)
 
 	return result
@@ -154,16 +155,15 @@ func getDeviations(ids []string) []deviation {
 		log.Panicln(err)
 	}
 
-
 	// Decode the results. Anonomous struct to remove the top level metadata field.
 	var results struct {
 		Metadata []deviation `json:"metadata"`
 	}
 
 	json.NewDecoder(resp.Body).Decode(&results)
-	
+
 	return results.Metadata
-	
+
 }
 
 // dADownloadWorker defines a goroutine which pulls from the follow channel, downloads from the feed and puts results in the downloadQueue
@@ -171,23 +171,23 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 
 	for {
 		// Get the next search and wait until the next polling opportunity
-		dAFollows.RLock() 
+		dAFollows.RLock()
 		feed := <-dAFollows.feedChannel
 		dAFollows.RUnlock()
 		// Wait for polling time from last query
 		<-time.After(pollingDelay - time.Since(feed.LastQueryTime))
 
 		if debug {
-			log.Printf("Polling deviantart feed \"%s\"\n", feed.Query)	
+			log.Printf("Polling deviantart feed \"%s\"\n", feed.Query)
 		}
-		
+
 		// Store the new ids to analyse in one go.
 		newIDs := make([]string, 0)
 		postURLs := make(map[string]string)
 
 		newLastPostTime := feed.LastPostTime
 		offset := 0
-		dAResultParseLoop:
+	dAResultParseLoop:
 		for page := 0; page < maxPages; page++ {
 			// Pull from feed and extract results.
 			query := feed.getDAResults(offset)
@@ -211,9 +211,9 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 
 			for _, result := range results {
 				result := result.(map[string]interface{})
-				
+
 				// Parse the published time return value
-				publishedTime, err := strconv.ParseInt(result["published_time"].(string), 10,64)
+				publishedTime, err := strconv.ParseInt(result["published_time"].(string), 10, 64)
 				if err != nil {
 					log.Panicln(err)
 				}
@@ -244,8 +244,8 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 		feed.LastPostTime = newLastPostTime
 
 		// Update the feed object in the database.
-		filter := bson.M{"feed_type":feed.FeedType, "query":feed.Query}
-		update := bson.M{"$set": bson.M{"last_query_time": feed.LastQueryTime, "last_post_time":feed.LastPostTime}}
+		filter := bson.M{"feed_type": feed.FeedType, "query": feed.Query}
+		update := bson.M{"$set": bson.M{"last_query_time": feed.LastQueryTime, "last_post_time": feed.LastPostTime}}
 		_, err := database.Collection(feedCollection).UpdateOne(context.TODO(), filter, update)
 		if err != nil {
 			log.Panicln(err)
@@ -272,7 +272,7 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 func getDAAccessToken() {
 
 	dAKeys := keys["deviantArt"].(map[interface{}]interface{})
-	
+
 	// Build url encoding of request.
 	params := url.Values{}
 	params.Add("grant_type", "client_credentials")
@@ -282,19 +282,19 @@ func getDAAccessToken() {
 	requestSting := params.Encode()
 
 	// Send request
-	resp, err := http.Post(	"https://www.deviantart.com/oauth2/token",
-						  	urlEncoded,
-						  	bytes.NewBufferString(requestSting))
-		
+	resp, err := http.Post("https://www.deviantart.com/oauth2/token",
+		urlEncoded,
+		bytes.NewBufferString(requestSting))
+
 	if err != nil {
 		log.Panicln(err)
 	}
 
 	// Decode the results
 	var result map[string]interface{}
-	
+
 	json.NewDecoder(resp.Body).Decode(&result)
-	
+
 	// If the response doesn't contain a valid token, throw an error.
 	token, ok := result["access_token"]
 	if !ok {
@@ -305,9 +305,8 @@ func getDAAccessToken() {
 	dAAccessToken.Lock()
 	dAAccessToken.token = token.(string)
 	dAAccessToken.Unlock()
-	
-}
 
+}
 
 func dASupervisor() {
 	// TODO: Implement
@@ -320,10 +319,10 @@ func (deviation) createDownloadStream(downloadQueue chan<- streamablePost, worke
 	getDAAccessToken()
 
 	// Every 59 minutes, get a new access token. Token expires every 60 minutes.
-	go func(){
+	go func() {
 		for {
-		time.Sleep(59 * time.Minute)
-		getDAAccessToken()
+			time.Sleep(59 * time.Minute)
+			getDAAccessToken()
 		}
 	}()
 
@@ -350,7 +349,7 @@ func (deviation) createDownloadStream(downloadQueue chan<- streamablePost, worke
 		dAFollows.feedChannel <- tag
 	}
 	dAFollows.Unlock()
-	
+
 	// Spawn a worker for each in the range of workers.
 	for i := 0; i < workers; i++ {
 		go dADownloadWorker(downloadQueue)
@@ -379,7 +378,7 @@ func (d deviation) getID() string {
 func (deviation) addFollowHandler() func(tgbotapi.Update) (bool, interface{}) {
 	msg := tgbotapi.NewMessage(chatID, "What type of follow would you like to add?")
 	replyKeyboard := tgbotapi.NewReplyKeyboard(tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Tag")),
-											   tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("User")))
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("User")))
 	replyKeyboard.OneTimeKeyboard = true
 	replyKeyboard.ResizeKeyboard = true
 	msg.ReplyMarkup = replyKeyboard
@@ -412,7 +411,7 @@ func handleFollowType(update tgbotapi.Update) (waitForResponse bool, responseHan
 	return
 }
 
-func handleAddFeed (feedType string, update tgbotapi.Update) (bool, interface{}) {
+func handleAddFeed(feedType string, update tgbotapi.Update) (bool, interface{}) {
 
 	// Check string contains whitespace, in which case break.
 	if len(strings.Fields(update.Message.Text)) != 1 {
@@ -424,7 +423,7 @@ func handleAddFeed (feedType string, update tgbotapi.Update) (bool, interface{})
 	query := strings.ToLower(update.Message.Text)
 
 	// Create a new feed from the parameters and insert it.
-	newFeed := dAFeed{FeedType: feedType, Query: query, LastPostTime:time.Now().Unix(), LastQueryTime:time.Time{}}
+	newFeed := dAFeed{FeedType: feedType, Query: query, LastPostTime: time.Now().Unix(), LastQueryTime: time.Time{}}
 	_, err := database.Collection(feedCollection).InsertOne(context.TODO(), newFeed)
 	if err != nil {
 		log.Panicln(err)
@@ -437,16 +436,16 @@ func handleAddFeed (feedType string, update tgbotapi.Update) (bool, interface{})
 		log.Panicln(err)
 	}
 
-	// Expand the current buffer and add the new feed, 
+	// Expand the current buffer and add the new feed,
 	// Note - we do this after sending the message this can take a while (has to aquire global lock on the feed channel).
 	dAFollows.Lock()
 	// Expand buffer by one
-	newChan := make(chan dAFeed, cap(dAFollows.feedChannel) + 1)
+	newChan := make(chan dAFeed, cap(dAFollows.feedChannel)+1)
 	newChan <- newFeed
 	// Put each of the previous feeds into the new channel.
 	currentFeeds := len(dAFollows.feedChannel)
 	for i := 0; i < currentFeeds; i++ {
-		newChan <-<- dAFollows.feedChannel
+		newChan <- <-dAFollows.feedChannel
 	}
 	dAFollows.feedChannel = newChan
 	dAFollows.Unlock()

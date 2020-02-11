@@ -4,21 +4,23 @@ package main
 // TODO: Implement python webhook calls.
 
 import (
-	"os/exec"
+	"context"
 	"encoding/json"
+	"flag"
+	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
-	"os/signal"
-	"github.com/go-telegram-bot-api/telegram-bot-api"
-	"time"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo"
-	"context"
-	"io/ioutil"
 	"os"
-	"fmt"
-	"log"
-	"flag"
+	"os/exec"
+	"os/signal"
+	"sync"
+	"time"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"gopkg.in/yaml.v2"
 )
 
@@ -28,7 +30,8 @@ const databaseName = "adopt-detector-DB"
 const keyFileName = "keys.yaml"
 
 // Global shared objects.
-var shutdownChan chan os.Signal
+var shutdownWG sync.WaitGroup
+var cleanupWG sync.WaitGroup
 var keys map[interface{}]interface{}
 var telegramBot *tgbotapi.BotAPI
 var chatID int64
@@ -41,19 +44,30 @@ var siteTypes = [...]streamablePost{deviation{}}
 // streamablePost represents a post from a website that can be downloaded in a "streamed".
 type streamablePost interface {
 	createDownloadStream(downloadQueue chan<- streamablePost, workers int) // Stream posts from the site and put them into the channel.
-	formatLink() string // Format a link to the post.
-	siteName() string // Return a computer-ready version of the site name (lowercase, no hypens etc.)
-	prettySiteName() string // Return a pretty version of the site name (e.g. with capitalisation)
-	getID() string // Return the field used as "_id" in the mongodb database.
-	addFollowHandler() func(tgbotapi.Update) (bool, interface{}) // Start the process of adding a follow through the telegram bot.
+	formatLink() string                                                    // Format a link to the post.
+	siteName() string                                                      // Return a computer-ready version of the site name (lowercase, no hypens etc.)
+	prettySiteName() string                                                // Return a pretty version of the site name (e.g. with capitalisation)
+	getID() string                                                         // Return the field used as "_id" in the mongodb database.
+	addFollowHandler() func(tgbotapi.Update) (bool, interface{})           // Start the process of adding a follow through the telegram bot.
 }
 
 // webhookHandler starts the ml_webhook python server to handle classification requests.
 func webhookHandler() {
+	// Add a wait to the cleanup counter
+	cleanupWG.Add(1)
+	defer cleanupWG.Done()
+
 	// TODO: Check
 	cmd := exec.Command("python", "ml_webhook.py")
 	fmt.Println("Starting python script.")
-	cmd.Run()
+	cmd.Start()
+
+	// Wait for shutdown
+	shutdownWG.Wait()
+	err := cmd.Process.Kill()
+	if err != nil {
+		log.Panicf("Cannot shut down webhook handler! Error code:\n%s\n", err)
+	}
 }
 
 // databaseWriter defines a goroutine that reads from the download queue, adds each post to the database, then passes it to the notify queue.
@@ -82,12 +96,12 @@ func postNotifier(postNotifyQueue <-chan streamablePost) {
 		}
 		// Decode the results
 		var result struct {
-			ID string
-			Site string
+			ID     string
+			Site   string
 			Notify bool
-			Score float64
+			Score  float64
 		}
-	
+
 		json.NewDecoder(resp.Body).Decode(&result)
 		fmt.Println(result)
 
@@ -124,6 +138,9 @@ func main() {
 	yaml.Unmarshal(keyBytes, &keys)
 	keyFile.Close()
 
+	// Initialise a shutdown waitgroup for all processes needing shutdown to wait on.
+	shutdownWG.Add(1)
+
 	// Create telegram bot object by getting key from the key object.
 	telegramKeys := keys["telegram"].(map[interface{}]interface{})
 	telegramBot, err = tgbotapi.NewBotAPI(telegramKeys["api_key"].(string))
@@ -142,7 +159,7 @@ func main() {
 
 	// Spawn callback handler
 	go telegramCallbackHandler()
-	
+
 	// Start webhook handler
 	go webhookHandler()
 
@@ -165,11 +182,17 @@ func main() {
 			sendShutdownMessage(r)
 			panic(r)
 		}
-	} ()
+	}()
 
-	// Halt forever, TODO: wait for control-C and start safe shutdown. 
-	shutdownChan = make(chan os.Signal, 1)
+	// Wait for Control-C and execute a safe shutdown.
+	shutdownChan := make(chan os.Signal, 1)
 	signal.Notify(shutdownChan, os.Interrupt)
-	<- shutdownChan
+	<-shutdownChan
+	log.Println("Shutting down...")
+
+	// Signal time to shut down.
+	shutdownWG.Done()
+	// Wait for cleanup to finish
+	cleanupWG.Wait()
 
 }

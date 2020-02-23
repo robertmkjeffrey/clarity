@@ -9,7 +9,17 @@ class SiteModel(ABC):
 
     @abstractmethod
     def predict(self, post_id):
-        """Predict an element based on an ID."""
+        """Predict an element based on an ID.
+        
+        Inputs:
+        =======
+            post_id: str
+        
+        Returns:
+        ========
+            (score, notify): (float, bool)
+                a score for the post representing the probability of notification, and a boolean representing whether to notify or not."""
+        
         pass
 
     @abstractmethod

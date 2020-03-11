@@ -59,7 +59,7 @@ func webhookHandler() {
 
 	// TODO: Check
 	cmd := exec.Command("python", "ml_webhook.py")
-	fmt.Println("Starting python script.")
+	log.Println("Starting python script.")
 	cmd.Start()
 
 	// Wait for shutdown

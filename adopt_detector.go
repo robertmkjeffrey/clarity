@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -57,9 +58,14 @@ func webhookHandler() {
 	cleanupWG.Add(1)
 	defer cleanupWG.Done()
 
-	// TODO: Check
 	cmd := exec.Command("python", "ml_webhook.py")
 	log.Println("Starting python script.")
+
+	// Define a writer to write python output to stout.
+	mwriter := io.MultiWriter(os.Stdout)
+	cmd.Stdout = mwriter
+	cmd.Stderr = mwriter
+
 	cmd.Start()
 
 	// Wait for shutdown
@@ -85,7 +91,7 @@ func databaseWriter(postDownloadQueue <-chan streamablePost, postNotifyQueue cha
 // postNotifier defines a goroutine that reads from the notify queue, classifies it using the python webhook, and then notifies the user if positive.
 func postNotifier(postNotifyQueue <-chan streamablePost) {
 	for post := range postNotifyQueue {
-		// TODO: Send web request to the python script
+		// Send web request to the python script
 		params := url.Values{}
 		params.Add("id", post.getID())
 		params.Add("site", post.siteName())

@@ -1,56 +1,82 @@
 from flask import Flask, request
+
+
+print("Python: Starting!")
+
 app = Flask(__name__)
 
-# Define a mapping from site names to site objects
-SITE_NAMES = {}
 
-@app.route('/retrain', methods=['POST'])
+from deviantArt_model import DeviantArtModel
+# Define a mapping from site names to site objects
+SITE_NAMES = {"deviantart": DeviantArtModel()}
+
+@app.route('/retrain')
 def handle_retrain():
-    """
-    """
+    """Retrain the classifier for the selected site with the most recent data avaliable."""
     site = request.args.get("site")
     if site is None:
-        return {"error":"invalid_request", "error_description":"Must provide the site to rebuild model for."}
-    # Rebuild model.
-    try:
-        SITE_NAMES[site].retrain()
-        return {"success": True}
-    except KeyError as e:
+        return {"success": False, "error":"invalid_request", "error_description":"Must provide the site to rebuild model for."}
+
+    if site not in SITE_NAMES.keys():
         # If the site name doesn't exist in the SITE_NAMES dictionary, return an error.
         return {"success": False, "error": "Cannot find site {e.args[0]}"}
+    
+    try:
+        # Rebuild model.
+        SITE_NAMES[site].retrain()
+        return {"success": True, "site" : site}
     except Exception as e:
         return {"success": False, "error": repr(e)}
 
 
 @app.route('/classify')
 def handle_classify():
-    """
-    """
+    """Predict the notification probability of a post."""
+
     post_id = str(request.args.get("id"))
     if post_id is None:
-        return {"error":"invalid_request", "error_description":"Must provide an id to be classified."}
+        return {"success": False, "error":"invalid_request", "error_description":"Must provide an id to be classified."}
     
     site = request.args.get("site")
     if site is None:
-        return {"error":"invalid_request", "error_description":"Must provide the site associated with the id."}
+        return {"success": False, "error":"invalid_request", "error_description":"Must provide the site associated with the id."}
 
-    # TODO: Request data from database
-    # TODO: Classify data
-    score = 0.69
-    notify = True
-
-    return {"id" : post_id, "site": site, "notify": notify, "score" : score}
-
+    if site not in SITE_NAMES.keys():
+        # If the site name doesn't exist in the SITE_NAMES dictionary, return an error.
+        return {"success": False, "error": "Cannot find site {e.args[0]}"}
     try:
         score, notify = SITE_NAMES[site].predict(post_id)
-        return {"id" : post_id, "site": site, "notify": notify, "score" : score}
-    except KeyError as e:
-        # If the site name doesn't exist in the SITE_NAMES dictionary, return an error.
-        return {"error": "Cannot find site {e.args[0]}"}
+        return {"success": True, "id" : post_id, "site": site, "notify": notify, "score" : score}
     except Exception as e:
-        return {"error": repr(e)}
+        return {"success": False, "error": repr(e)}
 
-print("Starting...")
+
+# TODO - decide if single call for multiple sites is consistent.
+@app.route('/stats')
+def handle_stats():
+    sites = request.args.get("sites")
+    if sites is None:
+        return {"success": False, "error": "invalid_request", "error_description":"Must provide the sites to retrieve statistics for. Use \"all\" to get statistics for all sites."}
+    
+    # TODO: Remove
+    print(sites)
+
+    # If all sites are requested, change the list to a list of all sites.
+    if sites == "all":
+        sites = SITE_NAMES.keys()
+    # If only a single site is provided, insert it into a list and continue.
+    if type(sites) == str:
+        sites = [sites]
+
+    stats = {}
+    for site in sites:
+        stats[site] = SITE_NAMES[site].getStats()
+    
+    return stats
+
+@app.route('/status')
+def handle_status():
+    return "Hello word!"
 
 if __name__ == "__main__":
     app.run()

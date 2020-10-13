@@ -8,7 +8,7 @@ class SiteModel(ABC):
         pass
 
     @abstractmethod
-    def predict(self, post_id):
+    def predict(self, post_id: str) -> (float, bool):
         """Predict an element based on an ID.
         
         Inputs:
@@ -23,11 +23,20 @@ class SiteModel(ABC):
         pass
 
     @abstractmethod
-    def getStats(self):
+    def getStats(self) -> dict:
         """Get a set of statistics for the current model."""
         pass
 
     @abstractmethod
-    def getLabelPosts(self):
-        """Return a set of posts to be labelled."""
+    def getLabelPosts(self, count: int) -> list :
+        """Return a set of posts to be labelled.
+        
+        Inputs:
+        =======
+            count: int
+            number of posts to label.
+
+        Returns:
+        ========
+            labelPosts: list(str)"""
         pass

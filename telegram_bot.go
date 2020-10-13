@@ -130,7 +130,7 @@ func telegramCallbackHandler() {
 			}
 
 		case update.Message != nil && update.Message.IsCommand():
-			// handle commands
+			// If the message is a command, perform the action.
 			var msg tgbotapi.MessageConfig
 			switch update.Message.Command() {
 			case "start":
@@ -148,7 +148,7 @@ func telegramCallbackHandler() {
 				// TODO: trigger a certain model to be retrained based on the latest data.
 				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")
 			case "stats":
-				// TODO: calculate and return statistics about the models
+				// TODO: Calculate and return statistics about the models
 				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")
 			case "label":
 				// TODO: send a series of posts to be labelled based on active-learning maths.
@@ -166,7 +166,7 @@ func telegramCallbackHandler() {
 			}
 
 		default:
-			// If command isn't recognised, reply with error.
+			// If message isn't recognised, reply with error.
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Try /help for commands.")
 			_, err := telegramBot.Send(msg)
 			if err != nil {

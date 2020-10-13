@@ -8,13 +8,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"os/signal"
 	"sync"
 	"time"
@@ -27,8 +25,8 @@ import (
 
 // Configuration constants.
 const mongoConnectTimeout = 5 * time.Second
-const databaseName = "adopt-detector-DB"
-const keyFileName = "keys.yaml"
+const databaseName = "adopt-detector-DB" // Database name in MongoDB.
+const keyFileName = "keys.yaml"          // YAML file containing keys for linked sites.
 
 // Global shared objects.
 var shutdownWG sync.WaitGroup
@@ -52,29 +50,30 @@ type streamablePost interface {
 	addFollowHandler() func(tgbotapi.Update) (bool, interface{})           // Start the process of adding a follow through the telegram bot.
 }
 
-// webhookHandler starts the ml_webhook python server to handle classification requests.
-func webhookHandler() {
-	// Add a wait to the cleanup counter
-	cleanupWG.Add(1)
-	defer cleanupWG.Done()
+// TODO: Decide if necessary.
+// // webhookHandler starts the ml_webhook python server to handle classification requests.
+// func webhookHandler() {
+// 	// Add a wait to the cleanup counter
+// 	cleanupWG.Add(1)
+// 	defer cleanupWG.Done()
 
-	cmd := exec.Command("python", "ml_webhook.py")
-	log.Println("Starting python script.")
+// 	cmd := exec.Command("python", "ml_webhook.py")
+// 	log.Println("Starting python script.")
 
-	// Define a writer to write python output to stout.
-	mwriter := io.MultiWriter(os.Stdout)
-	cmd.Stdout = mwriter
-	cmd.Stderr = mwriter
+// 	// Define a writer to write python output to stout.
+// 	mwriter := io.MultiWriter(os.Stdout)
+// 	cmd.Stdout = mwriter
+// 	cmd.Stderr = mwriter
 
-	cmd.Start()
+// 	cmd.Start()
 
-	// Wait for shutdown
-	shutdownWG.Wait()
-	err := cmd.Process.Kill()
-	if err != nil {
-		log.Panicf("Cannot shut down webhook handler! Error code:\n%s\n", err)
-	}
-}
+// 	// Wait for shutdown
+// 	shutdownWG.Wait()
+// 	err := cmd.Process.Kill()
+// 	if err != nil {
+// 		log.Panicf("Cannot shut down webhook handler! Error code:\n%s\n", err)
+// 	}
+// }
 
 // databaseWriter defines a goroutine that reads from the download queue, adds each post to the database, then passes it to the notify queue.
 func databaseWriter(postDownloadQueue <-chan streamablePost, postNotifyQueue chan<- streamablePost) {
@@ -145,7 +144,7 @@ func main() {
 	keyFile.Close()
 
 	// Initialise a shutdown waitgroup for all processes needing shutdown to wait on.
-	shutdownWG.Add(1)
+	// shutdownWG.Add(1) // TODO - is this necessary?
 
 	// Create telegram bot object by getting key from the key object.
 	telegramKeys := keys["telegram"].(map[interface{}]interface{})
@@ -166,8 +165,8 @@ func main() {
 	// Spawn callback handler
 	go telegramCallbackHandler()
 
-	// Start webhook handler
-	go webhookHandler()
+	// // Start webhook handler TODO - Decide if necessary
+	// go webhookHandler()
 
 	// Make channels for passing around posts.
 	postDownloadQueue := make(chan streamablePost, 100)
@@ -193,12 +192,13 @@ func main() {
 	// Wait for Control-C and execute a safe shutdown.
 	shutdownChan := make(chan os.Signal, 1)
 	signal.Notify(shutdownChan, os.Interrupt)
+
 	<-shutdownChan
 	log.Println("Shutting down...")
 
-	// Signal time to shut down.
-	shutdownWG.Done()
-	// Wait for cleanup to finish
-	cleanupWG.Wait()
+	// // Signal time to shut down.
+	// shutdownWG.Done()
+	// // Wait for cleanup to finish
+	// cleanupWG.Wait()
 
 }

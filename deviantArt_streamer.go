@@ -35,6 +35,7 @@ var dAFollows struct {
 	feedChannel chan dAFeed // Circular channel of followed users
 }
 
+// TODO: Can I clean up the json/bson for these ones?
 // deviation implements the streamablePost interface, represeting a post drawn from deviantArt.
 type deviation struct {
 	Deviationid    string  `json:"deviationid" bson:"_id"`

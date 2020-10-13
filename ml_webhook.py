@@ -1,14 +1,26 @@
 from flask import Flask, request
-
+from pymongo import MongoClient
 
 print("Python: Starting!")
 
 app = Flask(__name__)
 
 
+#--------------------------------#
+# Connect to the MongoDB Database
+#--------------------------------#
+
+# Connect to MongoDB
+client = MongoClient('mongodb://localhost:27017/')
+db_conn = client['adopt-detector-DB']
+
+#--------------------------------#
+# Create the site list
+#--------------------------------#
+
 from deviantArt_model import DeviantArtModel
 # Define a mapping from site names to site objects
-SITE_NAMES = {"deviantart": DeviantArtModel()}
+SITE_NAMES = {"deviantart": DeviantArtModel(db_conn)}
 
 @app.route('/retrain')
 def handle_retrain():
@@ -33,10 +45,14 @@ def handle_retrain():
 def handle_classify():
     """Predict the notification probability of a post."""
 
-    post_id = str(request.args.get("id"))
+    print(request.args)
+
+    post_id = request.args.get("id")
     if post_id is None:
         return {"success": False, "error":"invalid_request", "error_description":"Must provide an id to be classified."}
-    
+    else:
+        post_id = str(post_id)
+
     site = request.args.get("site")
     if site is None:
         return {"success": False, "error":"invalid_request", "error_description":"Must provide the site associated with the id."}
@@ -45,8 +61,7 @@ def handle_classify():
         # If the site name doesn't exist in the SITE_NAMES dictionary, return an error.
         return {"success": False, "error": "Cannot find site {e.args[0]}"}
     try:
-        score, notify = SITE_NAMES[site].predict(post_id)
-        return {"success": True, "id" : post_id, "site": site, "notify": notify, "score" : score}
+        return SITE_NAMES[site].predict(post_id)
     except Exception as e:
         return {"success": False, "error": repr(e)}
 

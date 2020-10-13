@@ -110,10 +110,6 @@ func postNotifier(postNotifyQueue <-chan streamablePost) {
 		json.NewDecoder(resp.Body).Decode(&result)
 		fmt.Println(result)
 
-		if debug {
-			log.Printf("Predicted post ID %s to have score %f", post.getID(), result.Score)
-		}
-
 		// Check if positive before sending notification.
 		if result.Notify {
 			sendPost(post, result.Score)

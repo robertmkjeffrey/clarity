@@ -1,6 +1,10 @@
 from abc import ABC, abstractmethod
 
 class SiteModel(ABC):
+    @abstractmethod
+    def __init__(self, db_conn):
+        """Initialise site module."""
+        pass
 
     @abstractmethod
     def retrain(self):

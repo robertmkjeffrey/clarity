@@ -18,6 +18,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+// Current Version: 20200519
+
 // Configuration constants
 // Time to wait between polls of deviantArt
 const pollingDelay = 5 * time.Minute
@@ -205,7 +207,7 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 			// results := query["results"].([]interface{})
 
 			// If the result list is empty, skip.
-			if len(results) == 0 {
+			if debug && len(results) == 0 {
 				log.Printf("Skipping query %s (empty result list).\n", feed.Query)
 				break dAResultParseLoop
 			}

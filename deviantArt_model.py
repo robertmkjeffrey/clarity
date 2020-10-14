@@ -99,5 +99,21 @@ class DeviantArtModel(SiteModel):
     def getStats(self):
         raise NotImplementedError
 
-    def getLabelPosts(self):
-        raise NotImplementedError
+    def getLabelPosts(self, count):
+        # Get all posts without notify scores.
+        raw_data = list(self.collection.find({'notify': {"$exists":False}}, projection))
+        df = pd.DataFrame(raw_data)
+        df['author']= df['author'].apply(lambda x: x["username"], 1)
+        df['tags'] = df['tags'].apply(lambda x: list(map(lambda y: y['tag_name'], x)), 1)
+        df.set_index("_id")
+
+        # Keep features as well as the ID to be returned.
+        labelling_df = df[features + ["_id"]]
+
+        labelling_df['decision'] = self.clf.decision_function(labelling_df)
+        labelling_df['decision_distance'] = labelling_df['decision'].abs()
+        
+        # Return the IDs of the posts with the `count` smallest distances from the seperating hyperplane.
+        ids = list(labelling_df.nsmallest(count, 'decision_distance')['_id'].values)
+
+        return {"success": True, "site": site, "ids": ids}

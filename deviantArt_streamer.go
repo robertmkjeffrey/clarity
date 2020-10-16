@@ -496,7 +496,7 @@ func (deviation) downloadPost(id string) postMessage {
 	// log.Printf("URL: %s", post.URL)
 	return postMessage{
 		post:        post,
-		forceNotify: true,
+		forceNotify: false,
 		skipWrite:   false,
 	}
 

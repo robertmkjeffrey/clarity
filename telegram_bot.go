@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
+	"net/url"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -162,8 +165,51 @@ Commands:
 				// TODO: Calculate and return statistics about the models
 				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")
 			case "label":
-				// TODO: send a series of posts to be labelled based on active-learning maths.
-				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")
+				// Send a series of posts to be labelled based on active-learning maths.
+
+				arguments := strings.Fields(update.Message.CommandArguments())
+
+				// If there's not the right number of args, send an error message.
+				if len(arguments) != 2 {
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Check /help for usage.")
+					break
+				}
+
+				siteArg := arguments[0]
+				count := arguments[1]
+
+				site, err := parseSiteName(siteArg)
+				// Make sure site is valid.
+				if err != nil {
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I don't recognise that site. Check /help for the implemented sites.")
+					break
+				}
+
+				// Request classifier for labelling.
+				// Send web request to the python script
+				params := url.Values{}
+				params.Add("site", siteArg)
+				params.Add("count", count)
+				requestParams := params.Encode()
+				resp, err := http.Get(fmt.Sprintf("http://localhost:5000/label?%s", requestParams))
+				if err != nil {
+					log.Panicln(err)
+				}
+				// Decode the results
+				var result struct {
+					IDs  []string
+					Site string
+				}
+
+				json.NewDecoder(resp.Body).Decode(&result)
+
+				for _, postID := range result.IDs {
+					post := site.downloadPost(postID)
+					post.skipWrite = true
+					post.forceNotify = true
+					downloadQueue <- post
+				}
+
 			case "add":
 
 				// Add a post to be labelled.
@@ -186,7 +232,9 @@ Commands:
 					break
 				}
 
-				downloadQueue <- site.downloadPost(postIDArg)
+				downloadedPost := site.downloadPost(postIDArg)
+				downloadedPost.forceNotify = true
+				downloadQueue <- downloadedPost
 
 			default:
 				// If command isn't recognised, reply with error.

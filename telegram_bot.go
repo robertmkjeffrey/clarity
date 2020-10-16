@@ -266,7 +266,8 @@ Commands:
 
 				post, err := site.downloadPost(postIDArg)
 				if err != nil {
-					return
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I couldn't find that post. Please try again.")
+					break
 				}
 				post.forceNotify = true
 				downloadQueue <- post

@@ -136,7 +136,18 @@ func telegramCallbackHandler() {
 			case "start":
 				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Welcome! Try /help to get a list of commands.")
 			case "help":
-				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "TODO: Fill this out")
+				msg = tgbotapi.NewMessage(update.Message.Chat.ID, `
+Wagyl (c) 2020 - @DingoDingus
+Currently implemented sites:
+	* [DeviantArt](https://www.deviantart.com/)
+Commands:
+	* /help - Print this message.
+	* /follow - Begin a dialogue to add a new data stream to Wagyl's followed users. 
+	* /add post_link - Add a post to the database and request it to be labelled. TODO - Currently unimplemented.
+	* /label site count - Get count posts from site to be labelled. Posts are chosen to maximise the training of the site's notification model. TODO - Currently unimplemented.
+	* /retrain [site] - Retrain a site's notification model. If no site is specified, all sites will be retrained. TODO - Currently unimplemented.
+	* /stats [site] - Print statistics about a certain site. If no site is specified, all site statistics will be printed. TODO - Currently unimplemented.
+`)
 			case "follow":
 				// Open a dialogue to add a new query to the follow list.
 				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Which site do you want to add a follow for?")
@@ -152,6 +163,9 @@ func telegramCallbackHandler() {
 				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")
 			case "label":
 				// TODO: send a series of posts to be labelled based on active-learning maths.
+				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")
+			case "add":
+				// TODO: add a post to be labelled.
 				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")
 			default:
 				// If command isn't recognised, reply with error.

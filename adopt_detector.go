@@ -166,6 +166,15 @@ func main() {
 	cancel()
 	database = client.Database(databaseName)
 
+	// TODO - Fix. Defer a shutdown message to send the panic to the user and then repanic.
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println("Sending shutdown")
+			sendShutdownMessage(r)
+			panic(r)
+		}
+	}()
+
 	// Spawn callback handler
 	go telegramCallbackHandler()
 
@@ -184,14 +193,6 @@ func main() {
 	// Spawn the writers.
 	go databaseWriter(postDownloadQueue, postNotifyQueue)
 	go postNotifier(postNotifyQueue)
-
-	// Defer a shutdown message to send the panic to the user and then repanic.
-	defer func() {
-		if r := recover(); r != nil {
-			sendShutdownMessage(r)
-			panic(r)
-		}
-	}()
 
 	// Wait for Control-C and execute a safe shutdown.
 	shutdownChan := make(chan os.Signal, 1)

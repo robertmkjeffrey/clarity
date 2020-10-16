@@ -40,15 +40,16 @@ var dAFollows struct {
 // TODO: Can I clean up the json/bson for these ones?
 // deviation implements the streamablePost interface, represeting a post drawn from deviantArt.
 type deviation struct {
-	Deviationid    string  `json:"deviationid" bson:"_id"`
-	URL            string  `json:"url" bson:"url"`
-	Author         dAUser  `json:"author" bson:"author"`
-	Title          string  `json:"title"`
-	Description    string  `json:"description"`
-	License        string  `json:"license"`
-	AllowsComments bool    `json:"allows_comments" bson:"allows_comments"`
-	Tags           []dATag `json:"tags"`
-	IsMature       bool    `json:"is_mature" bson:"is_mature"`
+	Deviationid     string  `json:"deviationid" bson:"_id"`
+	URL             string  `json:"url" bson:"url"`
+	Author          dAUser  `json:"author" bson:"author"`
+	Title           string  `json:"title"`
+	Description     string  `json:"description"`
+	License         string  `json:"license"`
+	AllowsComments  bool    `json:"allows_comments" bson:"allows_comments"`
+	Tags            []dATag `json:"tags"`
+	IsMature        bool    `json:"is_mature" bson:"is_mature"`
+	forceNotifyFlag bool
 }
 
 // dATag implements a tag (as part of a deviation)
@@ -137,6 +138,8 @@ func getDeviation(id string) deviation {
 
 // getDeviations pulls the metadata about a list of deviations from DeviantArt.
 func getDeviations(ids []string) []deviation {
+	// NOTE: This won't download URLs! Use getURL in addition for that.
+
 	// If there are too many ids to do in one go, run two queries and append the results.
 	if len(ids) > 50 {
 		return append(getDeviations(ids[:50]), getDeviations(ids[50:])...)
@@ -169,8 +172,32 @@ func getDeviations(ids []string) []deviation {
 
 }
 
+func (d *deviation) addURL() {
+	// Get URL by looking up deviation
+	// Build parameter list
+	params := url.Values{}
+	dAAccessToken.RLock()
+	params.Add("access_token", dAAccessToken.token)
+	dAAccessToken.RUnlock()
+
+	// Send query
+	resp, err := http.Get(fmt.Sprintf("https://www.deviantart.com/api/v1/oauth2/deviation/%s?%s", d.Deviationid, params.Encode()))
+	if err != nil {
+		log.Panicln(err)
+	}
+
+	// Decode the results. Anonomous struct to remove the top level metadata field.
+	var results struct {
+		URL string `json:"url"`
+	}
+
+	json.NewDecoder(resp.Body).Decode(&results)
+
+	d.URL = results.URL
+}
+
 // dADownloadWorker defines a goroutine which pulls from the follow channel, downloads from the feed and puts results in the downloadQueue
-func dADownloadWorker(downloadQueue chan<- streamablePost) {
+func dADownloadWorker(writeQueue chan<- postMessage) {
 
 	for {
 		// Get the next search and wait until the next polling opportunity
@@ -261,7 +288,11 @@ func dADownloadWorker(downloadQueue chan<- streamablePost) {
 		for _, deviation := range newDeviations {
 			// Set URL from the list we store before sending them off.
 			deviation.URL = postURLs[deviation.Deviationid]
-			downloadQueue <- deviation
+			writeQueue <- postMessage{
+				post:        deviation,
+				forceNotify: false,
+				skipWrite:   false,
+			}
 		}
 
 		// Put the current seach back into the queue.
@@ -316,7 +347,7 @@ func dASupervisor() {
 }
 
 // createDownloadStream spawns goroutines to follow the deviantart streams.
-func (deviation) createDownloadStream(downloadQueue chan<- streamablePost, workers int) {
+func (deviation) createDownloadStream(writeQueue chan<- postMessage, workers int) {
 
 	// Request an access token.
 	getDAAccessToken()
@@ -355,7 +386,7 @@ func (deviation) createDownloadStream(downloadQueue chan<- streamablePost, worke
 
 	// Spawn a worker for each in the range of workers.
 	for i := 0; i < workers; i++ {
-		go dADownloadWorker(downloadQueue)
+		go dADownloadWorker(writeQueue)
 	}
 
 	return
@@ -454,4 +485,19 @@ func handleAddFeed(feedType string, update tgbotapi.Update) (bool, interface{}) 
 	dAFollows.Unlock()
 
 	return false, nil
+}
+
+func (deviation) downloadPost(id string) postMessage {
+
+	post := getDeviation(id)
+
+	post.addURL()
+
+	// log.Printf("URL: %s", post.URL)
+	return postMessage{
+		post:        post,
+		forceNotify: true,
+		skipWrite:   false,
+	}
+
 }

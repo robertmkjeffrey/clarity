@@ -74,7 +74,7 @@ func followHandler(update tgbotapi.Update) (waitForResponse bool, responseHandle
 }
 
 // telegramCallbackHandler defines a goroutine that responds to messages and callbacks from the telegram chat.
-func telegramCallbackHandler() {
+func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 	// Create updates channel.
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
@@ -143,7 +143,7 @@ Currently implemented sites:
 Commands:
 	* /help - Print this message.
 	* /follow - Begin a dialogue to add a new data stream to Wagyl's followed users. 
-	* /add post_link - Add a post to the database and request it to be labelled. TODO - Currently unimplemented.
+	* /add post_id - Add a post to the database and request it to be labelled. TODO - Currently unimplemented.
 	* /label site count - Get count posts from site to be labelled. Posts are chosen to maximise the training of the site's notification model. TODO - Currently unimplemented.
 	* /retrain [site] - Retrain a site's notification model. If no site is specified, all sites will be retrained. TODO - Currently unimplemented.
 	* /stats [site] - Print statistics about a certain site. If no site is specified, all site statistics will be printed. TODO - Currently unimplemented.
@@ -165,8 +165,29 @@ Commands:
 				// TODO: send a series of posts to be labelled based on active-learning maths.
 				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")
 			case "add":
-				// TODO: add a post to be labelled.
-				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")
+
+				// Add a post to be labelled.
+
+				arguments := strings.Fields(update.Message.CommandArguments())
+
+				// If there's not the right number of args, send an error message.
+				if len(arguments) != 2 {
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Check /help for usage.")
+					break
+				}
+
+				siteArg := arguments[0]
+				postIDArg := arguments[1]
+
+				site, err := parseSiteName(siteArg)
+
+				if err != nil {
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I don't recognise that site. Check /help for the implemented sites.")
+					break
+				}
+
+				downloadQueue <- site.downloadPost(postIDArg)
+
 			default:
 				// If command isn't recognised, reply with error.
 				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Try /help for commands.")

@@ -42,12 +42,19 @@ var siteTypes = [...]streamablePost{deviation{}}
 
 // streamablePost represents a post from a website that can be downloaded in a "streamed".
 type streamablePost interface {
-	createDownloadStream(downloadQueue chan<- streamablePost, workers int) // Stream posts from the site and put them into the channel.
-	formatLink() string                                                    // Format a link to the post.
-	siteName() string                                                      // Return a computer-ready version of the site name (lowercase, no hypens etc.)
-	prettySiteName() string                                                // Return a pretty version of the site name (e.g. with capitalisation)
-	getID() string                                                         // Return the field used as "_id" in the mongodb database.
-	addFollowHandler() func(tgbotapi.Update) (bool, interface{})           // Start the process of adding a follow through the telegram bot.
+	createDownloadStream(downloadQueue chan<- postMessage, workers int) // Stream posts from the site and put them into the channel.
+	formatLink() string                                                 // Format a link to the post.
+	siteName() string                                                   // Return a computer-ready version of the site name (lowercase, no hypens etc.)
+	prettySiteName() string                                             // Return a pretty version of the site name (e.g. with capitalisation)
+	getID() string                                                      // Return the field used as "_id" in the mongodb database.
+	addFollowHandler() func(tgbotapi.Update) (bool, interface{})        // Start the process of adding a follow through the telegram bot.
+	downloadPost(string) postMessage                                    // Download and return a post based on its' ID.
+}
+
+type postMessage struct {
+	post        streamablePost // Post passed in message.
+	forceNotify bool           // When set, notify user regardless of classification.
+	skipWrite   bool           // When set, skip writing to database.
 }
 
 // TODO: Decide if necessary.
@@ -76,20 +83,29 @@ type streamablePost interface {
 // }
 
 // databaseWriter defines a goroutine that reads from the download queue, adds each post to the database, then passes it to the notify queue.
-func databaseWriter(postDownloadQueue <-chan streamablePost, postNotifyQueue chan<- streamablePost) {
-	for post := range postDownloadQueue {
+func databaseWriter(postWriteQueue <-chan postMessage, postNotifyQueue chan<- postMessage) {
+	for message := range postWriteQueue {
+		// If the skipWrite flag is set, skip the write step and just send it to the classifier.
+		if message.skipWrite {
+			// Send request to classifier
+			postNotifyQueue <- message
+			continue
+		}
+		post := message.post
 		// Add post to the appropriate collection.
 		log.Printf("Added %s\n", post.formatLink())
 		collection := database.Collection(fmt.Sprintf("%sPosts", post.siteName()))
 		collection.InsertOne(context.TODO(), post)
 		// Send request to classifier
-		postNotifyQueue <- post
+		postNotifyQueue <- message
 	}
 }
 
 // postNotifier defines a goroutine that reads from the notify queue, classifies it using the python webhook, and then notifies the user if positive.
-func postNotifier(postNotifyQueue <-chan streamablePost) {
-	for post := range postNotifyQueue {
+func postNotifier(postNotifyQueue <-chan postMessage) {
+	for message := range postNotifyQueue {
+		post := message.post
+
 		// Send web request to the python script
 		params := url.Values{}
 		params.Add("id", post.getID())
@@ -111,7 +127,7 @@ func postNotifier(postNotifyQueue <-chan streamablePost) {
 		fmt.Println(result)
 
 		// Check if positive before sending notification.
-		if result.Notify {
+		if result.Notify || message.forceNotify {
 			sendPost(post, result.Score)
 		}
 	}
@@ -175,23 +191,23 @@ func main() {
 		}
 	}()
 
+	// Make channels for passing around posts.
+	postWriteQueue := make(chan postMessage, 100)
+	postNotifyQueue := make(chan postMessage, 100)
+
 	// Spawn callback handler
-	go telegramCallbackHandler()
+	go telegramCallbackHandler(postWriteQueue)
 
 	// // Start webhook handler TODO - Decide if necessary
 	// go webhookHandler()
 
-	// Make channels for passing around posts.
-	postDownloadQueue := make(chan streamablePost, 100)
-	postNotifyQueue := make(chan streamablePost, 100)
-
 	// Create a stream for each type of post to be downloaded.
 	for _, postType := range siteTypes {
-		go postType.createDownloadStream(postDownloadQueue, 1)
+		go postType.createDownloadStream(postWriteQueue, 1)
 	}
 
 	// Spawn the writers.
-	go databaseWriter(postDownloadQueue, postNotifyQueue)
+	go databaseWriter(postWriteQueue, postNotifyQueue)
 	go postNotifier(postNotifyQueue)
 
 	// Wait for Control-C and execute a safe shutdown.

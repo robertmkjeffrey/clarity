@@ -69,7 +69,7 @@ class DeviantArtModel(SiteModel):
                                 
         clf = Pipeline([
                 ('preprocessor', preprocessor),
-                ('classifier', SVC(gamma = 'scale', class_weight='balanced', kernel = 'linear'))
+                ('classifier', SVC(C=0.5, class_weight='balanced', kernel = 'linear'))
         ])
 
         # Fit the model to the data.

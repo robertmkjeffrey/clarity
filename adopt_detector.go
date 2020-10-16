@@ -48,7 +48,7 @@ type streamablePost interface {
 	prettySiteName() string                                             // Return a pretty version of the site name (e.g. with capitalisation)
 	getID() string                                                      // Return the field used as "_id" in the mongodb database.
 	addFollowHandler() func(tgbotapi.Update) (bool, interface{})        // Start the process of adding a follow through the telegram bot.
-	downloadPost(string) postMessage                                    // Download and return a post based on its' ID.
+	downloadPost(string) (postMessage, error)                           // Download and return a post based on its' ID.
 }
 
 type postMessage struct {

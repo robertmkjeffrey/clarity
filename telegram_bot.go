@@ -160,7 +160,34 @@ Commands:
 				responseHandler = followHandler
 			case "retrain":
 				// TODO: trigger a certain model to be retrained based on the latest data.
-				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")
+				arguments := strings.Fields(update.Message.CommandArguments())
+
+				// If there's not the right number of args, send an error message.
+				if len(arguments) != 1 {
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Check /help for usage.")
+					break
+				}
+
+				siteArg := arguments[0]
+
+				site, err := parseSiteName(siteArg)
+				// Make sure site is valid.
+				if err != nil {
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I don't recognise that site. Check /help for the implemented sites.")
+					break
+				}
+
+				// Request classifier for retraining.
+				// Send web request to the python script
+				params := url.Values{}
+				params.Add("site", site.siteName())
+				requestParams := params.Encode()
+				_, err = http.Get(fmt.Sprintf("http://localhost:5000/retrain?%s", requestParams))
+				if err != nil {
+					log.Panicln(err)
+				}
+				// TODO: Error handling.
+				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Successfully retrained model.")
 			case "stats":
 				// TODO: Calculate and return statistics about the models
 				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")
@@ -188,7 +215,7 @@ Commands:
 				// Request classifier for labelling.
 				// Send web request to the python script
 				params := url.Values{}
-				params.Add("site", siteArg)
+				params.Add("site", site.siteName())
 				params.Add("count", count)
 				requestParams := params.Encode()
 				resp, err := http.Get(fmt.Sprintf("http://localhost:5000/label?%s", requestParams))
@@ -204,7 +231,12 @@ Commands:
 				json.NewDecoder(resp.Body).Decode(&result)
 
 				for _, postID := range result.IDs {
-					post := site.downloadPost(postID)
+					// TODO: This shouldn't be downloading the posts, it should read them from the database
+					// We can then send also the posts which no longer exist!
+					post, err := site.downloadPost(postID)
+					if err != nil {
+						continue
+					}
 					post.skipWrite = true
 					post.forceNotify = true
 					downloadQueue <- post
@@ -232,9 +264,12 @@ Commands:
 					break
 				}
 
-				downloadedPost := site.downloadPost(postIDArg)
-				downloadedPost.forceNotify = true
-				downloadQueue <- downloadedPost
+				post, err := site.downloadPost(postIDArg)
+				if err != nil {
+					return
+				}
+				post.forceNotify = true
+				downloadQueue <- post
 
 			default:
 				// If command isn't recognised, reply with error.

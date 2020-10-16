@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -132,8 +133,12 @@ var dAAccessToken struct {
 }
 
 // Convience wrapper to get a single deviation by id.
-func getDeviation(id string) deviation {
-	return getDeviations([]string{id})[0]
+func getDeviation(id string) (deviation, error) {
+	deviations := getDeviations([]string{id})
+	if len(deviations) == 0 {
+		return deviation{}, errors.New("deviation not found")
+	}
+	return deviations[0], nil
 }
 
 // getDeviations pulls the metadata about a list of deviations from DeviantArt.
@@ -487,9 +492,13 @@ func handleAddFeed(feedType string, update tgbotapi.Update) (bool, interface{}) 
 	return false, nil
 }
 
-func (deviation) downloadPost(id string) postMessage {
+func (deviation) downloadPost(id string) (postMessage, error) {
 
-	post := getDeviation(id)
+	post, err := getDeviation(id)
+
+	if err != nil {
+		return postMessage{}, err
+	}
 
 	post.addURL()
 
@@ -498,6 +507,6 @@ func (deviation) downloadPost(id string) postMessage {
 		post:        post,
 		forceNotify: false,
 		skipWrite:   false,
-	}
+	}, nil
 
 }

@@ -44,11 +44,13 @@ var siteTypes = [...]streamablePost{deviation{}}
 type streamablePost interface {
 	createDownloadStream(downloadQueue chan<- postMessage, workers int) // Stream posts from the site and put them into the channel.
 	formatLink() string                                                 // Format a link to the post.
+	formatPost() string                                                 // Formats the post in HTML.
 	siteName() string                                                   // Return a computer-ready version of the site name (lowercase, no hypens etc.)
 	prettySiteName() string                                             // Return a pretty version of the site name (e.g. with capitalisation)
 	getID() string                                                      // Return the field used as "_id" in the mongodb database.
 	addFollowHandler() func(tgbotapi.Update) (bool, interface{})        // Start the process of adding a follow through the telegram bot.
 	downloadPost(string) (postMessage, error)                           // Download and return a post based on its' ID.
+	decodeDBResult(*mongo.SingleResult) (streamablePost, error)         //Decode a result from the database.
 }
 
 type postMessage struct {
@@ -181,7 +183,6 @@ func main() {
 	client, err := mongo.Connect(ctx, mongoOptions)
 	cancel()
 	database = client.Database(databaseName)
-
 	// TODO - Fix. Defer a shutdown message to send the panic to the user and then repanic.
 	defer func() {
 		if r := recover(); r != nil {

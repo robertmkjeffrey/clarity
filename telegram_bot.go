@@ -2,11 +2,11 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -24,10 +24,16 @@ func sendPost(post streamablePost, score float64) {
 	// Make message with score and link
 	msgText := fmt.Sprintf("Score: %.2f\n%s", score, post.formatLink())
 	msg := tgbotapi.NewMessage(chatID, msgText)
+	formatReplyMarkup(post, score, &msg)
+	telegramBot.Send(msg)
+}
+
+func formatReplyMarkup(post streamablePost, score float64, msg *tgbotapi.MessageConfig) {
 	// Define inline keyboard
 	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonURL("🔗", post.formatLink()),
+			tgbotapi.NewInlineKeyboardButtonData("💬", fmt.Sprintf("cb_print %s %s %.2f", post.siteName(), post.getID(), score)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("✔", fmt.Sprintf("cb_true %s %s", post.siteName(), post.getID())),
@@ -38,7 +44,6 @@ func sendPost(post streamablePost, score float64) {
 			tgbotapi.NewInlineKeyboardButtonData("🗑", fmt.Sprintf("cb_delete %s %s", post.siteName(), post.getID())),
 		),
 	)
-	telegramBot.Send(msg)
 }
 
 func siteSelectKeyboard() tgbotapi.ReplyKeyboardMarkup {
@@ -50,15 +55,6 @@ func siteSelectKeyboard() tgbotapi.ReplyKeyboardMarkup {
 		keyboard.Keyboard = append(keyboard.Keyboard, tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(site.prettySiteName())))
 	}
 	return keyboard
-}
-
-func parseSiteName(text string) (streamablePost, error) {
-	for _, site := range siteTypes {
-		if text == site.siteName() || text == site.prettySiteName() {
-			return site, nil
-		}
-	}
-	return nil, errors.New("invalid site name")
 }
 
 func followHandler(update tgbotapi.Update) (waitForResponse bool, responseHandler interface{}) {
@@ -122,6 +118,24 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 				// Update post notify status.
 				updatePostNotify(site, id, false)
 				log.Printf("Set notification false on post %s\n", id)
+			case "cb_print":
+				score, err := strconv.ParseFloat(fields[3], 64)
+				if err != nil {
+					log.Fatalf("Got string conversion error for score %s", fields[3])
+				}
+				post, err := getPost(site, id)
+
+				if err != nil {
+					log.Fatalf("Got callback on post %s but could not find it in database.", id)
+				}
+
+				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, fmt.Sprintf("Score: %.2f\n%s", score, post.formatPost()))
+				formatReplyMarkup(post, score, &msg)
+
+				_, err = telegramBot.Send(msg)
+				if err != nil {
+					log.Panicln(err)
+				}
 			}
 
 		case update.Message != nil && waitingForResponse:
@@ -231,16 +245,24 @@ Commands:
 				json.NewDecoder(resp.Body).Decode(&result)
 
 				for _, postID := range result.IDs {
-					// TODO: This shouldn't be downloading the posts, it should read them from the database
-					// We can then send also the posts which no longer exist!
-					post, err := site.downloadPost(postID)
+					post, err := getPost(siteArg, postID)
 					if err != nil {
+						msg = tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Couldn't find post %s", postID))
+						_, err := telegramBot.Send(msg)
+						if err != nil {
+							log.Panicln(err)
+						}
 						continue
 					}
-					post.skipWrite = true
-					post.forceNotify = true
-					downloadQueue <- post
+					message := postMessage{
+						post:        post,
+						forceNotify: true,
+						skipWrite:   true,
+					}
+					downloadQueue <- message
 				}
+				// Don't send a message.
+				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "")
 
 			case "add":
 

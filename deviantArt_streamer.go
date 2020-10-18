@@ -15,8 +15,12 @@ import (
 	"sync"
 	"time"
 
+	"go.mongodb.org/mongo-driver/mongo"
+
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"go.mongodb.org/mongo-driver/bson"
+
+	"jaytaylor.com/html2text"
 )
 
 // Current Version: 20200519
@@ -199,6 +203,13 @@ func (d *deviation) addURL() {
 	json.NewDecoder(resp.Body).Decode(&results)
 
 	d.URL = results.URL
+}
+
+func (d deviation) decodeDBResult(dbResult *mongo.SingleResult) (result streamablePost, err error) {
+	post := deviation{}
+	err = dbResult.Decode(&post)
+	result = post
+	return
 }
 
 // dADownloadWorker defines a goroutine which pulls from the follow channel, downloads from the feed and puts results in the downloadQueue
@@ -400,6 +411,16 @@ func (deviation) createDownloadStream(writeQueue chan<- postMessage, workers int
 
 func (d deviation) formatLink() string {
 	return d.URL
+}
+
+func (d deviation) formatPost() string {
+	description, err := html2text.FromString(d.Description)
+	if err != nil {
+		log.Panicln(err)
+	}
+	return fmt.Sprintf("%s\n"+
+		"--------------------------------------------------------------------------------------\n"+
+		"%s", d.Title, description)
 }
 
 func (deviation) siteName() string {

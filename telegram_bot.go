@@ -129,6 +129,9 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 					log.Fatalf("Got callback on post %s but could not find it in database.", id)
 				}
 
+				// Delete the old message.
+				telegramBot.DeleteMessage(tgbotapi.NewDeleteMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID))
+
 				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, fmt.Sprintf("Score: %.2f\n%s", score, post.formatPost()))
 				formatReplyMarkup(post, score, &msg)
 

@@ -46,12 +46,12 @@ class DeviantArtModel(SiteModel):
         text_features = 'title'
 
         text_transformer = Pipeline([
-                ('vect', CountVectorizer(tokenizer=text_tokenize, ngram_range = (1,2))),
+                ('vect', CountVectorizer(tokenizer=text_tokenize, ngram_range = (1,2), min_df=0.2, max_df=0.8)),
                 ('tfidf', TfidfTransformer())
         ])
 
         html_transformer = Pipeline([
-                ('vect', CountVectorizer(tokenizer=html_tokenize, ngram_range = (1,2))),
+                ('vect', CountVectorizer(tokenizer=html_tokenize, ngram_range = (1,2), min_df=0.2, max_df=0.8)),
                 ('tfidf', TfidfTransformer())
         ])
 

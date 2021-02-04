@@ -1,6 +1,8 @@
 # Private Settings
 keys.yaml
 followed_users.yaml
+running_instructions.txt
+*.ipynb
 
 # VSCode
 .vscode

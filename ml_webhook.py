@@ -84,28 +84,13 @@ def handle_label():
     except Exception as e:
         return {"success": False, "error": repr(e)}
 
-# TODO - decide if single call for multiple sites is consistent.
 @app.route('/stats')
 def handle_stats():
-    sites = request.args.get("sites")
-    if sites is None:
-        return {"success": False, "error": "invalid_request", "error_description":"Must provide the sites to retrieve statistics for. Use \"all\" to get statistics for all sites."}
-    
-    # TODO: Remove
-    print(sites)
+    site = request.args.get("site")
+    if site is None:
+        return {"success": False, "error": "invalid_request", "error_description":"Must provide the site to retrieve statistics for."}
 
-    # If all sites are requested, change the list to a list of all sites.
-    if sites == "all":
-        sites = SITE_NAMES.keys()
-    # If only a single site is provided, insert it into a list and continue.
-    if type(sites) == str:
-        sites = [sites]
-
-    stats = {}
-    for site in sites:
-        stats[site] = SITE_NAMES[site].getStats()
-    
-    return stats
+    return SITE_NAMES[site].getStats()
 
 @app.route('/status')
 def handle_status():

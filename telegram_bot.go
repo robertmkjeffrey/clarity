@@ -12,6 +12,10 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
+func sendMessage(msg tgbotapi.MessageConfig) {
+
+}
+
 func sendShutdownMessage(r interface{}) {
 	msgText := fmt.Sprint("Panic! Shuting down with following panic: /n", fmt.Sprint(r))
 	msg := tgbotapi.NewMessage(chatID, msgText)
@@ -137,7 +141,13 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 
 				_, err = telegramBot.Send(msg)
 				if err != nil {
-					log.Panicln(err)
+					if err.Error() == "Bad Request: message is too long" {
+						// TODO: Better handling of too-long posts.
+						log.Printf("Error: post %s too long\n", post.getID())
+						sendPost(post, score)
+					} else {
+						log.Panicln(err)
+					}
 				}
 			}
 
@@ -163,9 +173,9 @@ Currently implemented sites:
 Commands:
 	* /help - Print this message.
 	* /follow - Begin a dialogue to add a new data stream to Wagyl's followed users. 
-	* /add post_id - Add a post to the database and request it to be labelled. TODO - Currently unimplemented.
-	* /label site count - Get count posts from site to be labelled. Posts are chosen to maximise the training of the site's notification model. TODO - Currently unimplemented.
-	* /retrain [site] - Retrain a site's notification model. If no site is specified, all sites will be retrained. TODO - Currently unimplemented.
+	* /add site post_id - Add a post to the database and request it to be labelled.
+	* /label site count - Get count posts from site to be labelled. Posts are chosen to maximise the training of the site's notification model.
+	* /retrain [site] - Retrain a site's notification model. TODO - If no site is specified, all sites will be retrained.
 	* /stats [site] - Print statistics about a certain site. If no site is specified, all site statistics will be printed. TODO - Currently unimplemented.
 `)
 			case "follow":

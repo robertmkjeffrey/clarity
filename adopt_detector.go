@@ -128,8 +128,9 @@ func postNotifier(postNotifyQueue <-chan postMessage) {
 		json.NewDecoder(resp.Body).Decode(&result)
 		fmt.Println(result)
 
+                // TODO: Add option to swap between -0.5 criterion and 0.
 		// Check if positive before sending notification.
-		if result.Notify || message.forceNotify {
+		if (result.Score > -0.5) || message.forceNotify {
 			sendPost(post, result.Score)
 		}
 	}

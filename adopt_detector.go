@@ -14,7 +14,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"sync"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -29,8 +28,8 @@ const databaseName = "adopt-detector-DB" // Database name in MongoDB.
 const keyFileName = "keys.yaml"          // YAML file containing keys for linked sites.
 
 // Global shared objects.
-var shutdownWG sync.WaitGroup
-var cleanupWG sync.WaitGroup
+// var shutdownWG sync.WaitGroup
+// var cleanupWG sync.WaitGroup
 var keys map[interface{}]interface{}
 var telegramBot *tgbotapi.BotAPI
 var chatID int64 // Drawn from keys.
@@ -86,6 +85,11 @@ type postMessage struct {
 
 // databaseWriter defines a goroutine that reads from the download queue, adds each post to the database, then passes it to the notify queue.
 func databaseWriter(postWriteQueue <-chan postMessage, postNotifyQueue chan<- postMessage) {
+
+	if debug {
+		log.Println("Started database writer.")
+	}
+
 	for message := range postWriteQueue {
 		// If the skipWrite flag is set, skip the write step and just send it to the classifier.
 		if message.skipWrite {
@@ -105,6 +109,11 @@ func databaseWriter(postWriteQueue <-chan postMessage, postNotifyQueue chan<- po
 
 // postNotifier defines a goroutine that reads from the notify queue, classifies it using the python webhook, and then notifies the user if positive.
 func postNotifier(postNotifyQueue <-chan postMessage) {
+
+	if debug {
+		log.Println("Started post notifier.")
+	}
+
 	for message := range postNotifyQueue {
 		post := message.post
 
@@ -126,7 +135,6 @@ func postNotifier(postNotifyQueue <-chan postMessage) {
 		}
 
 		json.NewDecoder(resp.Body).Decode(&result)
-		fmt.Println(result)
 
 		// TODO: Add option to swap between -0.5 criterion and 0.
 		// Check if positive before sending notification.
@@ -139,19 +147,13 @@ func postNotifier(postNotifyQueue <-chan postMessage) {
 func main() {
 
 	// Define command-line options.
-	var init = flag.Bool("init", false, "Initalise all necessary databases and files.")
+	// var init = flag.Bool("init", false, "Initalise all necessary databases and files.")
 	var debugFlag = flag.Bool("debug", false, "Log more information to the terminal.")
 
 	// Parse flags
 	flag.Parse()
 
 	debug = *debugFlag
-
-	if *init {
-		//TODO: run setup code
-		fmt.Println("Setting up system...")
-		return
-	}
 
 	if debug {
 		log.Println("Running in debug mode.")
@@ -193,6 +195,9 @@ func main() {
 	mongoOptions := options.Client().ApplyURI("mongodb://localhost:27017")
 	ctx, cancel := context.WithTimeout(context.Background(), mongoConnectTimeout)
 	client, err := mongo.Connect(ctx, mongoOptions)
+	if err != nil {
+		log.Fatalf("Failed to connect to mongoDB.\nMessage: %s\n", err)
+	}
 	cancel()
 	database = client.Database(databaseName)
 	// TODO - Fix. Defer a shutdown message to send the panic to the user and then repanic.

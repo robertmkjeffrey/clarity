@@ -12,10 +12,6 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
-func sendMessage(msg tgbotapi.MessageConfig) {
-
-}
-
 func sendShutdownMessage(r interface{}) {
 	msgText := fmt.Sprint("Panic! Shuting down with following panic: /n", fmt.Sprint(r))
 	msg := tgbotapi.NewMessage(chatID, msgText)
@@ -90,6 +86,10 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 	var waitingForResponse bool = false
 	// Function to handle next step in a thread of commands.
 	var responseHandler func(tgbotapi.Update) (bool, interface{})
+
+	if debug {
+		log.Println("Started telegram callback handler.")
+	}
 
 	for update := range updates {
 		switch {

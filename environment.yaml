@@ -126,5 +126,3 @@ dependencies:
     - requests-oauthlib==1.3.0
     - tweepy==3.8.0
     - urllib3==1.25.6
-prefix: /home/el-jeffe/anaconda3/envs/adopt-detector
-

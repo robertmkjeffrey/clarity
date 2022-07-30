@@ -427,6 +427,10 @@ func (deviation) createDownloadStream(writeQueue chan<- postMessage, workers int
 		go dADownloadWorker(writeQueue)
 	}
 
+	if debug {
+		log.Printf("Started %d DeviantArt workers.\n", workers)
+	}
+
 }
 
 func (d deviation) formatLink() string {

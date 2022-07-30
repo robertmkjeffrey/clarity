@@ -1,3 +1,4 @@
+from typing import List, Tuple, Dict
 from abc import ABC, abstractmethod
 
 class SiteModel(ABC):
@@ -12,7 +13,7 @@ class SiteModel(ABC):
         pass
 
     @abstractmethod
-    def predict(self, post_id: str) -> (float, bool):
+    def predict(self, post_id: str) -> Tuple[float, bool]:
         """Predict an element based on an ID.
         
         Inputs:
@@ -27,12 +28,12 @@ class SiteModel(ABC):
         pass
 
     @abstractmethod
-    def getStats(self) -> dict:
+    def getStats(self) -> Dict[str, str]:
         """Get a set of statistics for the current model."""
         pass
 
     @abstractmethod
-    def getLabelPosts(self, count: int) -> list :
+    def getLabelPosts(self, count: int) -> List[str] :
         """Return a set of posts to be labelled.
         
         Inputs:

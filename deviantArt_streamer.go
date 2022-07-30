@@ -332,7 +332,11 @@ func getDAAccessToken() {
 	params.Add("grant_type", "client_credentials")
 	dA_client_id, ok := dAKeys["client_id"].(string)
 	if !ok {
-		log.Panicln("DeviantArt client_id is missing or malformed.")
+		dA_client_id_int, ok := dAKeys["client_id"].(int)
+		if !ok {
+			log.Panicln("DeviantArt client_id is missing or malformed.")
+		}
+		dA_client_id = fmt.Sprint(dA_client_id_int)
 	}
 	dA_client_secret, ok := dAKeys["client_secret"].(string)
 	if !ok {
@@ -378,6 +382,32 @@ func dASupervisor() {
 // createDownloadStream spawns goroutines to follow the deviantart streams.
 func (deviation) createDownloadStream(writeQueue chan<- postMessage, workers int) {
 
+	// Read follow files from database and add to queue.
+	var tagList []dAFeed
+	cursor, err := database.Collection(feedCollection).Find(context.TODO(), bson.D{})
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// Decode all results
+	err = cursor.All(context.TODO(), &tagList)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	if len(tagList) == 0 {
+		log.Println("No DeviantArt feeds found, skipping...")
+		return
+	}
+
+	dAFollows.Lock()
+	// Create the follow queue and add all tags to it.
+	dAFollows.feedChannel = make(chan dAFeed, len(tagList))
+	for _, tag := range tagList {
+		dAFollows.feedChannel <- tag
+	}
+	dAFollows.Unlock()
+
 	// Request an access token.
 	getDAAccessToken()
 
@@ -392,33 +422,10 @@ func (deviation) createDownloadStream(writeQueue chan<- postMessage, workers int
 	// Spawn a supervisor task
 	go dASupervisor()
 
-	// Read follow files from database and add to queue.
-	var tagList []dAFeed
-	cursor, err := database.Collection(feedCollection).Find(context.TODO(), bson.D{})
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	// Decode all results
-	err = cursor.All(context.TODO(), &tagList)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	dAFollows.Lock()
-	// Create the follow queue and add all tags to it.
-	dAFollows.feedChannel = make(chan dAFeed, len(tagList))
-	for _, tag := range tagList {
-		dAFollows.feedChannel <- tag
-	}
-	dAFollows.Unlock()
-
 	// Spawn a worker for each in the range of workers.
 	for i := 0; i < workers; i++ {
 		go dADownloadWorker(writeQueue)
 	}
-
-	return
 
 }
 

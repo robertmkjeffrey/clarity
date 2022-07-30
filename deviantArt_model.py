@@ -24,8 +24,8 @@ class DeviantArtModel(SiteModel):
             self.clf = DummyClassifier(strategy="constant", constant=True)
             return
 
-        df['author']= df['author'].apply(lambda x: x["username"], 1)
-        df['tags'] = df['tags'].apply(lambda x: list(map(lambda y: y['tag_name'], x)), 1)
+        df['author']= df['author'].apply(lambda x: x["username"])
+        df['tags'] = df['tags'].apply(lambda x: list(map(lambda y: y['tag_name'], x)))
         df = df.set_index("_id")
 
         ml_columns = features + ["notify"]
@@ -93,8 +93,8 @@ class DeviantArtModel(SiteModel):
             return {'success': False, 'site':site, 'id' : post_id, 'error': "id not found in database."}
 
         post_df = pd.DataFrame(raw_data)
-        post_df['author']= post_df['author'].apply(lambda x: x["username"], 1)
-        post_df['tags'] = post_df['tags'].apply(lambda x: list(map(lambda y: y['tag_name'], x)), 1)
+        post_df['author']= post_df['author'].apply(lambda x: x["username"])
+        post_df['tags'] = post_df['tags'].apply(lambda x: list(map(lambda y: y['tag_name'], x)))
         post_df = post_df.set_index("_id")
 
 
@@ -108,20 +108,24 @@ class DeviantArtModel(SiteModel):
         raise NotImplementedError
 
     def getLabelPosts(self, count):
+
+        if self.clf is None:
+            return {"success": False}
+
         # Get all posts without notify scores.
         raw_data = list(self.collection.find({'notify': {"$exists":False}}, projection))
         df = pd.DataFrame(raw_data)
         df['author']= df['author'].apply(lambda x: x["username"], 1)
         df['tags'] = df['tags'].apply(lambda x: list(map(lambda y: y['tag_name'], x)), 1)
-        df.set_index("_id")
+        df = df.set_index("_id")
 
         # Keep features as well as the ID to be returned.
-        labelling_df = df[features + ["_id"]]
+        labelling_df = df[features]
 
         labelling_df['decision'] = self.clf.decision_function(labelling_df)
         labelling_df['decision_distance'] = labelling_df['decision'].abs()
         
         # Return the IDs of the posts with the `count` smallest distances from the seperating hyperplane.
-        ids = list(labelling_df.nsmallest(count, 'decision_distance')['_id'].values)
+        ids = list(labelling_df.nsmallest(count, 'decision_distance').index.values)
 
         return {"success": True, "site": site, "ids": ids}

@@ -321,13 +321,26 @@ func dADownloadWorker(writeQueue chan<- postMessage) {
 // getDAAcessToken refreshes the access token stored in dAAccessToken
 func getDAAccessToken() {
 
-	dAKeys := keys["deviantArt"].(map[interface{}]interface{})
+	dAKeys, ok := keys["deviantArt"].(map[interface{}]interface{})
+	if !ok {
+		log.Printf("Error with DeviantArt keys. \n Message: \n")
+		dAKeys = keys["deviantArt"].(map[interface{}]interface{})
+	}
 
 	// Build url encoding of request.
 	params := url.Values{}
 	params.Add("grant_type", "client_credentials")
-	params.Add("client_id", dAKeys["client_id"].(string))
-	params.Add("client_secret", dAKeys["client_secret"].(string))
+	dA_client_id, ok := dAKeys["client_id"].(string)
+	if !ok {
+		log.Panicln("DeviantArt client_id is missing or malformed.")
+	}
+	dA_client_secret, ok := dAKeys["client_secret"].(string)
+	if !ok {
+		log.Panicln("DeviantArt client_secret is missing or malformed.")
+	}
+
+	params.Add("client_id", dA_client_id)
+	params.Add("client_secret", dA_client_secret)
 
 	requestSting := params.Encode()
 

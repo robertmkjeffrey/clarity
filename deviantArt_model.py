@@ -17,6 +17,13 @@ class DeviantArtModel(SiteModel):
         # Download data from MongoDB and convert to ML dataframe.
         raw_data = list(self.collection.find({'notify': {"$exists":True}}, projection))
         df = pd.DataFrame(raw_data)
+
+        # If we lack enough data to build a classifier, set a classifier that always returns True.
+        if len(df) < 5:
+            from sklearn.dummy import DummyClassifier
+            self.clf = DummyClassifier(strategy="constant", constant=True)
+            return
+
         df['author']= df['author'].apply(lambda x: x["username"], 1)
         df['tags'] = df['tags'].apply(lambda x: list(map(lambda y: y['tag_name'], x)), 1)
         df.set_index("_id")

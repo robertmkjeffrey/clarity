@@ -26,7 +26,7 @@ class DeviantArtModel(SiteModel):
 
         df['author']= df['author'].apply(lambda x: x["username"], 1)
         df['tags'] = df['tags'].apply(lambda x: list(map(lambda y: y['tag_name'], x)), 1)
-        df.set_index("_id")
+        df = df.set_index("_id")
 
         ml_columns = features + ["notify"]
         ml_df = df[ml_columns]
@@ -46,32 +46,34 @@ class DeviantArtModel(SiteModel):
 
         from ml_helpers import text_tokenize, html_tokenize
 
-        # The mixed bracketing is here for a reason, I promise
-        categorical_features = ['author']
-        html_features = 'description'
-        list_features = 'tags'
-        text_features = 'title'
-
-        text_transformer = Pipeline([
-                ('vect', CountVectorizer(tokenizer=text_tokenize, ngram_range = (1,2), min_df=0.2, max_df=0.8)),
+        title_transformer = Pipeline([
+                ('vect', CountVectorizer(tokenizer=text_tokenize, ngram_range = (1,2), min_df=2, max_df=0.8, stop_words="english")),
                 ('tfidf', TfidfTransformer())
         ])
 
-        html_transformer = Pipeline([
-                ('vect', CountVectorizer(tokenizer=html_tokenize, ngram_range = (1,2), min_df=0.2, max_df=0.8)),
+        description_transformer = Pipeline([
+                ('vect', CountVectorizer(tokenizer=html_tokenize, ngram_range = (1,2), min_df=2, max_df=0.8, stop_words="english")),
                 ('tfidf', TfidfTransformer())
         ])
 
-        list_transformer = Pipeline([
+        tag_transformer = Pipeline([
                 ('vect', CountVectorizer(tokenizer=lambda x: x, lowercase=False)),
                 ('tfidf', TfidfTransformer())
         ])
             
+
+        # The mixed bracketing for feature names is here for a reason, I promise
+        # Update: it's because lists pass a 2d array to the preprocessor,
+        # whereas single elements pass a 1d-array.
+        # See "columns" in https://scikit-learn.org/stable/modules/generated/sklearn.compose.ColumnTransformer.html
+        
+
+
         preprocessor = ColumnTransformer([
-                ('categories', OneHotEncoder(handle_unknown='ignore'), categorical_features),
-                ('text', text_transformer, text_features),
-                ('list', list_transformer, list_features),
-                ('html', html_transformer, html_features)
+                # ('categories', OneHotEncoder(handle_unknown='ignore'), categorical_features),
+                ('title', title_transformer, "title"),
+                ('tags', tag_transformer, "tags"),
+                ('description', description_transformer, "description")
         ])
                                 
         clf = Pipeline([
@@ -93,13 +95,12 @@ class DeviantArtModel(SiteModel):
         post_df = pd.DataFrame(raw_data)
         post_df['author']= post_df['author'].apply(lambda x: x["username"], 1)
         post_df['tags'] = post_df['tags'].apply(lambda x: list(map(lambda y: y['tag_name'], x)), 1)
-        post_df.set_index("_id")
+        post_df = post_df.set_index("_id")
 
 
-        post_ml = post_df[features]
-        post_ml
+        X_post = post_df[features]
 
-        decision_function = self.clf.decision_function(post_ml)[0]
+        decision_function = self.clf.decision_function(X_post)[0]
 
         return {"success": True, "id" : post_id, "site": site, "notify": bool(decision_function >= 0), "score" : decision_function}
 

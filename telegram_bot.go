@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -33,7 +32,7 @@ func formatReplyMarkup(post streamablePost, score float64, msg *tgbotapi.Message
 	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonURL("🔗", post.formatLink()),
-			tgbotapi.NewInlineKeyboardButtonData("💬", fmt.Sprintf("cb_print %s %s %.2f", post.siteName(), post.getID(), score)),
+			tgbotapi.NewInlineKeyboardButtonData("💬", fmt.Sprintf("cb_print %s %s", post.siteName(), post.getID())),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("✔", fmt.Sprintf("cb_true %s %s", post.siteName(), post.getID())),
@@ -123,11 +122,6 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 				updatePostNotify(site, id, false)
 				log.Printf("Set notification false on post %s\n", id)
 			case "cb_print":
-				// TODO: remove
-				score, err := strconv.ParseFloat(fields[3], 64)
-				if err != nil {
-					log.Fatalf("Got string conversion error for score %s", fields[3])
-				}
 				post, err := getPost(site, id)
 
 				if err != nil {
@@ -136,7 +130,7 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 
 				// Update post with a new score.
 				result := classifyPost(post)
-				score = result.Score
+				score := result.Score
 
 				// Delete the old message.
 				telegramBot.DeleteMessage(tgbotapi.NewDeleteMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID))

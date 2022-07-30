@@ -6,3 +6,7 @@ twitter:
 telegram: 
     api_key: ~
     chat_id: ~
+deviantArt:
+    client_id: ~
+    client_secret: ~
+

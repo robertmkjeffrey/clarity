@@ -107,6 +107,31 @@ func databaseWriter(postWriteQueue <-chan postMessage, postNotifyQueue chan<- po
 	}
 }
 
+// Struct to store results from the classifier.
+type classificationResult struct {
+	ID     string
+	Site   string
+	Notify bool
+	Score  float64
+}
+
+func classifyPost(post streamablePost) classificationResult {
+	// Send web request to the python script
+	params := url.Values{}
+	params.Add("id", post.getID())
+	params.Add("site", post.siteName())
+	requestParams := params.Encode()
+	resp, err := http.Get(fmt.Sprintf("http://localhost:5000/classify?%s", requestParams))
+	if err != nil {
+		log.Panicln(err)
+	}
+	// Decode the results
+	var result classificationResult
+
+	json.NewDecoder(resp.Body).Decode(&result)
+	return result
+}
+
 // postNotifier defines a goroutine that reads from the notify queue, classifies it using the python webhook, and then notifies the user if positive.
 func postNotifier(postNotifyQueue <-chan postMessage) {
 
@@ -117,24 +142,7 @@ func postNotifier(postNotifyQueue <-chan postMessage) {
 	for message := range postNotifyQueue {
 		post := message.post
 
-		// Send web request to the python script
-		params := url.Values{}
-		params.Add("id", post.getID())
-		params.Add("site", post.siteName())
-		requestParams := params.Encode()
-		resp, err := http.Get(fmt.Sprintf("http://localhost:5000/classify?%s", requestParams))
-		if err != nil {
-			log.Panicln(err)
-		}
-		// Decode the results
-		var result struct {
-			ID     string
-			Site   string
-			Notify bool
-			Score  float64
-		}
-
-		json.NewDecoder(resp.Body).Decode(&result)
+		result := classifyPost(post)
 
 		// TODO: Add option to swap between -0.5 criterion and 0.
 		// Check if positive before sending notification.

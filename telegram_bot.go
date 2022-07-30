@@ -123,6 +123,7 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 				updatePostNotify(site, id, false)
 				log.Printf("Set notification false on post %s\n", id)
 			case "cb_print":
+				// TODO: remove
 				score, err := strconv.ParseFloat(fields[3], 64)
 				if err != nil {
 					log.Fatalf("Got string conversion error for score %s", fields[3])
@@ -132,6 +133,10 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 				if err != nil {
 					log.Fatalf("Got callback on post %s but could not find it in database.", id)
 				}
+
+				// Update post with a new score.
+				result := classifyPost(post)
+				score = result.Score
 
 				// Delete the old message.
 				telegramBot.DeleteMessage(tgbotapi.NewDeleteMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID))

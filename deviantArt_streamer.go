@@ -29,6 +29,9 @@ import (
 // Time to wait between polls of deviantArt
 const pollingDelay = 5 * time.Minute
 
+// When a new feed is added, get all posts in the last initialHistoryAmount seconds.
+const initialHistoryAmount = 1_000_000
+
 // Maximum number of pages to download before ending
 const maxPages = 10
 
@@ -507,7 +510,12 @@ func handleAddFeed(feedType string, update tgbotapi.Update) (bool, interface{}) 
 	query := strings.ToLower(update.Message.Text)
 
 	// Create a new feed from the parameters and insert it.
-	newFeed := dAFeed{FeedType: feedType, Query: query, LastPostTime: time.Now().Unix(), LastQueryTime: time.Time{}}
+	newFeed := dAFeed{
+		FeedType:      feedType,
+		Query:         query,
+		LastPostTime:  time.Now().Unix() - initialHistoryAmount,
+		LastQueryTime: time.Time{},
+	}
 	_, err := database.Collection(feedCollection).InsertOne(context.TODO(), newFeed)
 	if err != nil {
 		log.Panicln(err)

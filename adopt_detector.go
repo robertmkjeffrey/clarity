@@ -33,7 +33,7 @@ var shutdownWG sync.WaitGroup
 var cleanupWG sync.WaitGroup
 var keys map[interface{}]interface{}
 var telegramBot *tgbotapi.BotAPI
-var chatID int64
+var chatID int64 // Drawn from keys.
 var database *mongo.Database
 var debug = false
 
@@ -128,7 +128,7 @@ func postNotifier(postNotifyQueue <-chan postMessage) {
 		json.NewDecoder(resp.Body).Decode(&result)
 		fmt.Println(result)
 
-                // TODO: Add option to swap between -0.5 criterion and 0.
+		// TODO: Add option to swap between -0.5 criterion and 0.
 		// Check if positive before sending notification.
 		if (result.Score > -0.5) || message.forceNotify {
 			sendPost(post, result.Score)
@@ -171,12 +171,23 @@ func main() {
 
 	// Create telegram bot object by getting key from the key object.
 	telegramKeys := keys["telegram"].(map[interface{}]interface{})
-	telegramBot, err = tgbotapi.NewBotAPI(telegramKeys["api_key"].(string))
+	apiKey := telegramKeys["api_key"].(string)
+	telegramBot, err = tgbotapi.NewBotAPI(apiKey)
+	// telegramBot, err = tgbotapi.NewBotAPI(telegramKeys["api_key"].(string))
 	if err != nil {
+		log.Panicf("Failed to initialise Telegram bot.\n Message: %s\n", err)
 		log.Panicln(err)
 	}
 	telegramBot.Debug = false
-	chatID = int64(telegramKeys["chat_id"].(int))
+
+	switch g := telegramKeys["chat_id"].(type) {
+	case nil:
+		log.Panicln("Chat_id is nil.")
+	case int:
+		chatID = int64(g)
+	default:
+		log.Panicln("Telegram chat_id has unexpected type (should be int).")
+	}
 
 	// Connect to mongoDB database.
 	mongoOptions := options.Client().ApplyURI("mongodb://localhost:27017")

@@ -45,6 +45,8 @@ var dAFollows struct {
 	feedChannel chan dAFeed // Circular channel of followed users
 }
 
+var dANewFeedSignal chan struct{}
+
 // TODO: Can I clean up the json/bson for these ones?
 // deviation implements the streamablePost interface, represeting a post drawn from deviantArt.
 type deviation struct {
@@ -398,11 +400,6 @@ func (deviation) createDownloadStream(writeQueue chan<- postMessage, workers int
 		log.Fatalln(err)
 	}
 
-	if len(tagList) == 0 {
-		log.Println("No DeviantArt feeds found, skipping...")
-		return
-	}
-
 	dAFollows.Lock()
 	// Create the follow queue and add all tags to it.
 	dAFollows.feedChannel = make(chan dAFeed, len(tagList))
@@ -410,6 +407,17 @@ func (deviation) createDownloadStream(writeQueue chan<- postMessage, workers int
 		dAFollows.feedChannel <- tag
 	}
 	dAFollows.Unlock()
+
+	dANewFeedSignal = make(chan struct{})
+
+	// If there are no feeds, we don't want to start polling.
+	// Print a warning. Wait for new feeds to be added before continuing.
+	if len(tagList) == 0 {
+		if debug {
+			log.Println("No DeviantArt feeds found. Waiting for new feeds via telegram.")
+		}
+		<-dANewFeedSignal
+	}
 
 	// Request an access token.
 	getDAAccessToken()
@@ -541,6 +549,14 @@ func handleAddFeed(feedType string, update tgbotapi.Update) (bool, interface{}) 
 	}
 	dAFollows.feedChannel = newChan
 	dAFollows.Unlock()
+
+	select {
+	case dANewFeedSignal <- struct{}{}:
+		if debug {
+			log.Println("Signaled new DeviantArt feed.")
+		}
+	default:
+	}
 
 	return false, nil
 }

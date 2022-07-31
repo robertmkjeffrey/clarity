@@ -217,7 +217,9 @@ func main() {
 		}
 	}()
 
-	log.Println("Connected to MongoDB.")
+	if debug {
+		log.Println("Connected to MongoDB.")
+	}
 
 	// Make channels for passing around posts.
 	postWriteQueue := make(chan postMessage, 100)

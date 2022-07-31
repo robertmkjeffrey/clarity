@@ -25,7 +25,7 @@ import (
 // Configuration constants.
 const mongoConnectTimeout = 5 * time.Second
 const databaseName = "adopt-detector-DB" // Database name in MongoDB.
-const keyFileName = "keys.yaml"          // YAML file containing keys for linked sites.
+const keyFileName = "../keys.yaml"       // YAML file containing keys for linked sites.
 
 // Global shared objects.
 // var shutdownWG sync.WaitGroup

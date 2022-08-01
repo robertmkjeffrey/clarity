@@ -86,7 +86,7 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 	// Function to handle next step in a thread of commands.
 	var responseHandler func(tgbotapi.Update) (bool, interface{})
 
-		log.Println("Started telegram callback handler.")
+	log.Println("Started telegram callback handler.")
 
 	for update := range updates {
 		switch {
@@ -105,7 +105,7 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 				// Hide message
 				telegramBot.DeleteMessage(tgbotapi.NewDeleteMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID))
 				if debug {
-				log.Printf("Hide post %s\n", id)
+					log.Printf("Hide post %s\n", id)
 				}
 			case "cb_delete":
 				// Delete post from the database.
@@ -113,7 +113,7 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 				// Hide message.
 				telegramBot.DeleteMessage(tgbotapi.NewDeleteMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID))
 				if debug {
-				log.Printf("Delete post %s\n", id)
+					log.Printf("Delete post %s\n", id)
 				}
 			case "cb_true":
 				// Update post notify status
@@ -123,7 +123,7 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 				// Update post notify status.
 				updatePostNotify(site, id, false)
 				if debug {
-				log.Printf("Set notification false on post %s\n", id)
+					log.Printf("Set notification false on post %s\n", id)
 				}
 			case "cb_print":
 				post, err := getPost(site, id)
@@ -192,32 +192,52 @@ Commands:
 				// TODO: trigger a certain model to be retrained based on the latest data.
 				arguments := strings.Fields(update.Message.CommandArguments())
 
-				// If there's not the right number of args, send an error message.
-				if len(arguments) != 1 {
+				// Site to be retrained.
+				var siteName string
+
+				// If we have one arg, use it as the site name.
+				// If we have none, retrain all sites.
+				// Otherwise, send an error.
+				if len(arguments) > 1 {
 					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Check /help for usage.")
 					break
-				}
+				} else if len(arguments) == 0 {
+					siteName = "all"
+				} else { // Exactly one argument.
+					siteArg := arguments[0]
+					site, err := parseSiteName(siteArg)
+					// Make sure site is valid.
+					if err != nil {
+						msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I don't recognise that site. Check /help for the implemented sites.")
+						break
+					}
 
-				siteArg := arguments[0]
-
-				site, err := parseSiteName(siteArg)
-				// Make sure site is valid.
-				if err != nil {
-					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I don't recognise that site. Check /help for the implemented sites.")
-					break
+					siteName = site.siteName()
 				}
 
 				// Request classifier for retraining.
 				// Send web request to the python script
 				params := url.Values{}
-				params.Add("site", site.siteName())
+				params.Add("site", siteName)
 				requestParams := params.Encode()
-				_, err = http.Get(fmt.Sprintf("http://localhost:5000/retrain?%s", requestParams))
+				resp, err := http.Get(fmt.Sprintf("http://localhost:5000/retrain?%s", requestParams))
 				if err != nil {
 					log.Panicln(err)
 				}
-				// TODO: Error handling.
-				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Successfully retrained model.")
+
+				// Check if the retrain was successful and send an appropriate message.
+				var result struct {
+					Success bool
+					Error   string
+				}
+				json.NewDecoder(resp.Body).Decode(&result)
+
+				if result.Success {
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Successfully retrained model.")
+				} else {
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Failed to retrain model \"%s\".\nError: %s\n", siteName, result.Error))
+				}
+
 			case "stats":
 				// TODO: Calculate and return statistics about the models
 				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")

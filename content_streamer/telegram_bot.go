@@ -239,8 +239,57 @@ Commands:
 				}
 
 			case "stats":
+				// TODO: trigger a certain model to be retrained based on the latest data.
+				arguments := strings.Fields(update.Message.CommandArguments())
+
+				// Site to be retrained.
+				var siteName string
+
+				// If we have one arg, use it as the site name.
+				// If we have none, retrain all sites.
+				// Otherwise, send an error.
+				if len(arguments) > 1 {
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Check /help for usage.")
+					break
+				} else if len(arguments) == 0 {
+					siteName = "all"
+				} else { // Exactly one argument.
+					siteArg := arguments[0]
+					site, err := parseSiteName(siteArg)
+					// Make sure site is valid.
+					if err != nil {
+						msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I don't recognise that site. Check /help for the implemented sites.")
+						break
+					}
+
+					siteName = site.siteName()
+				}
+
+				// Request classifier for retraining.
+				// Send web request to the python script
+				params := url.Values{}
+				params.Add("site", siteName)
+				requestParams := params.Encode()
+				resp, err := http.Get(fmt.Sprintf("http://localhost:5000/stats?%s", requestParams))
+				if err != nil {
+					log.Panicln(err)
+				}
+
+				// Check if the retrain was successful and send an appropriate message.
+				var result struct {
+					Success    bool
+					Statistics string
+					Error      string
+				}
+				json.NewDecoder(resp.Body).Decode(&result)
+
+				if result.Success {
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, result.Statistics)
+				} else {
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Failed to get statistics for model \"%s\".\nError: %s\n", siteName, result.Error))
+				}
 				// TODO: Calculate and return statistics about the models
-				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")
+				// msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")
 			case "label":
 				// Send a series of posts to be labelled based on active-learning maths.
 

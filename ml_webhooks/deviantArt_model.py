@@ -12,6 +12,16 @@ class DeviantArtModel(SiteModel):
         self.collection = db_conn.deviantartPosts
         pass
 
+    def _get_DevaintArt_data(self, filter):
+
+        raw_data = list(self.collection.find(filter, projection))
+        df = pd.DataFrame(raw_data)
+
+        df['author']= df['author'].apply(lambda x: x["username"])
+        df['tags'] = df['tags'].apply(lambda x: list(map(lambda y: y['tag_name'], x)))
+        df = df.set_index("_id")
+        return df
+
     def retrain(self):
 
         # Download data from MongoDB and convert to ML dataframe.
@@ -105,7 +115,26 @@ class DeviantArtModel(SiteModel):
         return {"success": True, "id" : post_id, "site": site, "notify": bool(decision_function >= 0), "score" : decision_function}
 
     def getStats(self):
-        raise NotImplementedError
+
+        df = self._get_DevaintArt_data({})
+
+        # Aggregate author statistics into dataframe.
+        author_df = df.author.value_counts()[:5].to_frame("Post Count")
+        author_df["Labelled Rate"] = df.groupby("author").apply(lambda x: (~x.notify.isna()).mean())
+        author_df["Notification Rate"] = df.groupby("author").apply(lambda x: x[~x.notify.isna()].notify.mean())
+        author_df_string = (author_df.to_string(formatters= {
+            'Labelled Rate': '{:,.2%}'.format,
+            'Notification Rate': '{:,.2%}'.format,
+        }))
+
+
+        statistics = f"""Number of Posts: {len(df)}
+        Percent Labelled: {(~df.notify.isna()).mean() * 100:.2f}%
+        Notification Rate: {df[~df.notify.isna()].notify.mean() * 100:.2f}%\n
+        Top-5 Author Statistics:
+        {author_df_string}"""
+
+        return statistics
 
     def getLabelPosts(self, count):
 

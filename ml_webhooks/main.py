@@ -92,9 +92,22 @@ def handle_label():
 def handle_stats():
     site = request.args.get("site")
     if site is None:
-        return {"success": False, "error": "invalid_request", "error_description":"Must provide the site to retrieve statistics for."}
+        return {"success": False, "error": "Must provide the site to get statistics for"}
 
-    return SITE_NAMES[site].getStats()
+    # Site = "all" means retrain all models.
+    if site != "all" and site not in SITE_NAMES.keys():
+        # If the site name doesn't exist in the SITE_NAMES dictionary, return an error.
+        return {"success": False, "error": f"Cannot find site {site}"}
+    
+    try:
+        # Retrain all models if site == "all". Otherwise retrain the specific site.
+        if site == "all":
+            statistics = "\n".join([site.getStats() for site in SITE_NAMES.values()])
+        else:
+            statistics = SITE_NAMES[site].getStats()
+        return {"success": True, "site" : site, "statistics" : statistics}
+    except Exception as e:
+        return {"success": False, "error": repr(e)}
 
 @app.route('/status')
 def handle_status():

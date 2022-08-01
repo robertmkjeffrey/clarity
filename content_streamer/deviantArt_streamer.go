@@ -413,9 +413,7 @@ func (deviation) createDownloadStream(writeQueue chan<- postMessage, workers int
 	// If there are no feeds, we don't want to start polling.
 	// Print a warning. Wait for new feeds to be added before continuing.
 	if len(tagList) == 0 {
-		if debug {
-			log.Println("No DeviantArt feeds found. Waiting for new feeds via telegram.")
-		}
+		log.Println("No DeviantArt feeds found. Waiting for new feeds via telegram.")
 		<-dANewFeedSignal
 	}
 
@@ -438,9 +436,7 @@ func (deviation) createDownloadStream(writeQueue chan<- postMessage, workers int
 		go dADownloadWorker(writeQueue)
 	}
 
-	if debug {
-		log.Printf("Started %d DeviantArt workers.\n", workers)
-	}
+	log.Printf("Started %d DeviantArt workers.\n", workers)
 
 }
 

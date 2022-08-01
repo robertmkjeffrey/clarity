@@ -86,9 +86,7 @@ type postMessage struct {
 // databaseWriter defines a goroutine that reads from the download queue, adds each post to the database, then passes it to the notify queue.
 func databaseWriter(postWriteQueue <-chan postMessage, postNotifyQueue chan<- postMessage) {
 
-	if debug {
-		log.Println("Started database writer.")
-	}
+	log.Println("Started database writer.")
 
 	for message := range postWriteQueue {
 		// If the skipWrite flag is set, skip the write step and just send it to the classifier.
@@ -99,7 +97,9 @@ func databaseWriter(postWriteQueue <-chan postMessage, postNotifyQueue chan<- po
 		}
 		post := message.post
 		// Add post to the appropriate collection.
-		log.Printf("Added %s\n", post.formatLink())
+		if debug {
+			log.Printf("Added %s\n", post.formatLink())
+		}
 		collection := database.Collection(fmt.Sprintf("%sPosts", post.siteName()))
 		collection.InsertOne(context.TODO(), post)
 		// Send request to classifier
@@ -135,9 +135,7 @@ func classifyPost(post streamablePost) classificationResult {
 // postNotifier defines a goroutine that reads from the notify queue, classifies it using the python webhook, and then notifies the user if positive.
 func postNotifier(postNotifyQueue <-chan postMessage) {
 
-	if debug {
-		log.Println("Started post notifier.")
-	}
+	log.Println("Started post notifier.")
 
 	for message := range postNotifyQueue {
 		post := message.post
@@ -217,9 +215,7 @@ func main() {
 		}
 	}()
 
-	if debug {
-		log.Println("Connected to MongoDB.")
-	}
+	log.Println("Connected to MongoDB.")
 
 	// Make channels for passing around posts.
 	postWriteQueue := make(chan postMessage, 100)

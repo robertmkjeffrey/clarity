@@ -94,7 +94,7 @@ def handle_stats():
 
 @app.route('/status')
 def handle_status():
-    return "Hello word!"
+    return "Hello world! \nVersion tag: 00000000000000"
 
 if __name__ == "__main__":
 

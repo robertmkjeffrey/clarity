@@ -86,9 +86,7 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 	// Function to handle next step in a thread of commands.
 	var responseHandler func(tgbotapi.Update) (bool, interface{})
 
-	if debug {
 		log.Println("Started telegram callback handler.")
-	}
 
 	for update := range updates {
 		switch {
@@ -106,13 +104,17 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 			case "cb_hide":
 				// Hide message
 				telegramBot.DeleteMessage(tgbotapi.NewDeleteMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID))
+				if debug {
 				log.Printf("Hide post %s\n", id)
+				}
 			case "cb_delete":
 				// Delete post from the database.
 				deletePost(site, id)
 				// Hide message.
 				telegramBot.DeleteMessage(tgbotapi.NewDeleteMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID))
+				if debug {
 				log.Printf("Delete post %s\n", id)
+				}
 			case "cb_true":
 				// Update post notify status
 				updatePostNotify(site, id, true)
@@ -120,7 +122,9 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 			case "cb_false":
 				// Update post notify status.
 				updatePostNotify(site, id, false)
+				if debug {
 				log.Printf("Set notification false on post %s\n", id)
+				}
 			case "cb_print":
 				post, err := getPost(site, id)
 

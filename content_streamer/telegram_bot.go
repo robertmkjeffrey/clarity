@@ -155,11 +155,14 @@ func telegramCallbackHandler(downloadQueue chan<- postMessage) {
 			}
 
 		case update.Message != nil && waitingForResponse:
+			var newResponseHandler interface{}
 			// If waiting for a response and got a message, run the response handler.
-			waitingForResponse, newResponseHandler := responseHandler(update)
+			waitingForResponse, newResponseHandler = responseHandler(update)
 			// If still waiting for a response, cast the handler.
 			if waitingForResponse {
 				responseHandler = newResponseHandler.(func(tgbotapi.Update) (bool, interface{}))
+			} else {
+				responseHandler = nil
 			}
 
 		case update.Message != nil && update.Message.IsCommand():

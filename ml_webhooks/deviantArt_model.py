@@ -1,5 +1,9 @@
 from abstract_site import SiteModel
 import pandas as pd
+import numpy as np
+
+# What percentage of labelling examples should be randomized.
+RANDOM_LABELLING_EXAMPLE_RATIO = 0.2
 
 site = "deviantart"
 projection = {'url':1, 'title':1, 'description':1, "notify":1, "tags.tag_name":1, "author.username":1}
@@ -13,7 +17,7 @@ class DeviantArtModel(SiteModel):
         pass
 
     def _get_DevaintArt_data(self, filter):
-
+        # Download data from MongoDB and convert to ML dataframe.
         raw_data = list(self.collection.find(filter, projection))
         df = pd.DataFrame(raw_data)
 
@@ -24,19 +28,13 @@ class DeviantArtModel(SiteModel):
 
     def retrain(self):
 
-        # Download data from MongoDB and convert to ML dataframe.
-        raw_data = list(self.collection.find({'notify': {"$exists":True}}, projection))
-        df = pd.DataFrame(raw_data)
+        df = self._get_DevaintArt_data({'notify': {"$exists":True}})
 
         # If we lack enough data to build a classifier, set a classifier that always returns True.
         if len(df) < 5:
             from sklearn.dummy import DummyClassifier
             self.clf = DummyClassifier(strategy="constant", constant=True)
             return
-
-        df['author']= df['author'].apply(lambda x: x["username"])
-        df['tags'] = df['tags'].apply(lambda x: list(map(lambda y: y['tag_name'], x)))
-        df = df.set_index("_id")
 
         ml_columns = features + ["notify"]
         ml_df = df[ml_columns]
@@ -98,15 +96,10 @@ class DeviantArtModel(SiteModel):
         self.clf = clf
 
     def predict(self, post_id):
-        raw_data = list(self.collection.find({'_id' : post_id}, projection))
-        if len(raw_data) == 0:
+        post_df = self._get_DevaintArt_data({'_id' : post_id})
+
+        if len(post_df) == 0:
             return {'success': False, 'site':site, 'id' : post_id, 'error': "id not found in database."}
-
-        post_df = pd.DataFrame(raw_data)
-        post_df['author']= post_df['author'].apply(lambda x: x["username"])
-        post_df['tags'] = post_df['tags'].apply(lambda x: list(map(lambda y: y['tag_name'], x)))
-        post_df = post_df.set_index("_id")
-
 
         X_post = post_df[features]
 
@@ -142,12 +135,7 @@ class DeviantArtModel(SiteModel):
             return {"success": False}
 
         # Get all posts without notify scores.
-        raw_data = list(self.collection.find({'notify': {"$exists":False}}, projection))
-        df = pd.DataFrame(raw_data)
-        df['author']= df['author'].apply(lambda x: x["username"], 1)
-        df['tags'] = df['tags'].apply(lambda x: list(map(lambda y: y['tag_name'], x)), 1)
-        df = df.set_index("_id")
-
+        df = self._get_DevaintArt_data({'notify': {"$exists":False}})
         # Keep features as well as the ID to be returned.
         labelling_df = df[features]
 
@@ -155,6 +143,13 @@ class DeviantArtModel(SiteModel):
         labelling_df['decision_distance'] = labelling_df['decision'].abs()
         
         # Return the IDs of the posts with the `count` smallest distances from the seperating hyperplane.
-        ids = list(labelling_df.nsmallest(count, 'decision_distance').index.values)
+        ids = labelling_df.nsmallest(count, 'decision_distance').index.values
 
-        return {"success": True, "site": site, "ids": ids}
+        # Randomly select indicies to fill with random posts.
+        # This prevents an inductive meltdown where confident mistakes aren't re-assessed.
+        randomisation_index = np.random.random((len(ids))) < RANDOM_LABELLING_EXAMPLE_RATIO
+        random_ids = labelling_df.sample(len(ids)).index
+
+        ids[randomisation_index] = random_ids[randomisation_index]
+
+        return {"success": True, "site": site, "ids": list(ids)}

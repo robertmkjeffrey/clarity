@@ -27,6 +27,9 @@ const mongoConnectTimeout = 5 * time.Second
 const databaseName = "adopt-detector-DB" // Database name in MongoDB.
 const keyFileName = "../keys.yaml"       // YAML file containing keys for linked sites.
 
+// Decision function threshold for notification. Between -1 and 1.
+const POST_NOTIFICATION_THRESHOLD = -0.1
+
 // Global shared objects.
 // var shutdownWG sync.WaitGroup
 // var cleanupWG sync.WaitGroup
@@ -144,7 +147,7 @@ func postNotifier(postNotifyQueue <-chan postMessage) {
 
 		// TODO: Add option to swap between -0.5 criterion and 0.
 		// Check if positive before sending notification.
-		if (result.Score > -0.5) || message.forceNotify {
+		if (result.Score > POST_NOTIFICATION_THRESHOLD) || message.forceNotify {
 			sendPost(post, result.Score)
 		}
 	}

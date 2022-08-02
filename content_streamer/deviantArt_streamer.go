@@ -30,10 +30,10 @@ import (
 const pollingDelay = 5 * time.Minute
 
 // When a new feed is added, get all posts in the last initialHistoryAmount seconds.
-const initialHistoryAmount = 1_000_000
+const initialHistoryAmount = 50_000_000
 
 // Maximum number of pages to download before ending
-const maxPages = 10
+const maxPages = 5
 
 // Reability constants
 const urlEncoded = "application/x-www-form-urlencoded"

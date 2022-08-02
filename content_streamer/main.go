@@ -40,7 +40,7 @@ var database *mongo.Database
 var debug = false
 
 // siteTypes stores a list of nil pointers of each type implementing streamablePost to generalise certain operations.
-var siteTypes = [...]streamablePost{deviation{}}
+var siteTypes = [...]streamablePost{deviation{}, tweet{}}
 
 // streamablePost represents a post from a website that can be downloaded in a "streamed".
 type streamablePost interface {

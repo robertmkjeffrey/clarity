@@ -37,7 +37,7 @@ const maxPages = 5
 
 // Reability constants
 const urlEncoded = "application/x-www-form-urlencoded"
-const feedCollection = "deviantartFeeds"
+const deviantartFeedCollection = "deviantartFeeds"
 
 // Global objects
 var dAFollows struct {
@@ -297,7 +297,7 @@ func dADownloadWorker(writeQueue chan<- postMessage) {
 		// Update the feed object in the database.
 		filter := bson.M{"feed_type": feed.FeedType, "query": feed.Query}
 		update := bson.M{"$set": bson.M{"last_query_time": feed.LastQueryTime, "last_post_time": feed.LastPostTime}}
-		_, err := database.Collection(feedCollection).UpdateOne(context.TODO(), filter, update)
+		_, err := database.Collection(deviantartFeedCollection).UpdateOne(context.TODO(), filter, update)
 		if err != nil {
 			log.Panicln(err)
 		}
@@ -389,7 +389,7 @@ func (deviation) createDownloadStream(writeQueue chan<- postMessage, workers int
 
 	// Read follow files from database and add to queue.
 	var tagList []dAFeed
-	cursor, err := database.Collection(feedCollection).Find(context.TODO(), bson.D{})
+	cursor, err := database.Collection(deviantartFeedCollection).Find(context.TODO(), bson.D{})
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -520,7 +520,7 @@ func handleAddFeed(feedType string, update tgbotapi.Update) (bool, interface{}) 
 		LastPostTime:  time.Now().Unix() - initialHistoryAmount,
 		LastQueryTime: time.Time{},
 	}
-	_, err := database.Collection(feedCollection).InsertOne(context.TODO(), newFeed)
+	_, err := database.Collection(deviantartFeedCollection).InsertOne(context.TODO(), newFeed)
 	if err != nil {
 		log.Panicln(err)
 	}

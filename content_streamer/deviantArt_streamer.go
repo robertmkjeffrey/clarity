@@ -94,8 +94,8 @@ func (f dAFeed) getDAResults(offset int) map[string]interface{} {
 		params.Add("username", f.Query)
 		apiURL = "https://www.deviantart.com/api/v1/oauth2/gallery/all"
 	case "tag":
-		params.Add("tag", f.Query)
-		apiURL = "https://www.deviantart.com/api/v1/oauth2/browse/tags"
+		params.Add("q", f.Query)
+		apiURL = "https://www.deviantart.com/api/v1/oauth2/browse/newest"
 	default:
 		log.Panicf("Error: Invalid feed type \"%s\"\n", f.FeedType)
 	}

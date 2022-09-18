@@ -225,8 +225,18 @@ func dADownloadWorker(writeQueue chan<- postMessage) {
 		dAFollows.RLock()
 		feed := <-dAFollows.feedChannel
 		dAFollows.RUnlock()
+
+		select {
 		// Wait for polling time from last query
-		<-time.After(pollingDelay - time.Since(feed.LastQueryTime))
+		case <-time.After(pollingDelay - time.Since(feed.LastQueryTime)):
+		// If a new feed is added, put the current search back
+		// and get the new one out.
+		case <-dANewFeedSignal:
+			dAFollows.RLock()
+			dAFollows.feedChannel <- feed
+			feed = <-dAFollows.feedChannel
+			dAFollows.RUnlock()
+		}
 
 		if debug {
 			log.Printf("Polling deviantart feed \"%s\"\n", feed.Query)
@@ -532,6 +542,10 @@ func handleAddFeed(feedType string, update tgbotapi.Update) (bool, interface{}) 
 		log.Panicln(err)
 	}
 
+	if debug {
+		log.Println("Waiting for dAFollows to unlock...")
+	}
+
 	// Expand the current buffer and add the new feed,
 	// Note - we do this after sending the message this can take a while (has to aquire global lock on the feed channel).
 	dAFollows.Lock()
@@ -545,6 +559,10 @@ func handleAddFeed(feedType string, update tgbotapi.Update) (bool, interface{}) 
 	}
 	dAFollows.feedChannel = newChan
 	dAFollows.Unlock()
+
+	if debug {
+		log.Println("Finished adding to dAFollows.")
+	}
 
 	select {
 	case dANewFeedSignal <- struct{}{}:

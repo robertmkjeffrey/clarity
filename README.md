@@ -1,6 +1,12 @@
 # Adopt Detector
 This tool is built to help streamline notifications for twitter users. It was inspired by a desire to get notified of artists' commissions without needing to turn on all notifications for the user. The tool works by downloading tweets, and sending a telegram message when a machine learning model classifies the tweet as "notification-worthy". 
 
+## Installation
+
+Fill out the keys.yaml file with the relevant keys for your application.
+
+ docker run -p 27017:27017 --name wagyl-mongo -d mongo:latest
+
 ## Running
 
 `go run *.go`

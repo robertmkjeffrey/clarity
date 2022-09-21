@@ -32,8 +32,26 @@ class DeviantArtModel(SiteModel):
 
         # If we lack enough data to build a classifier, set a classifier that always returns True.
         if len(df) < 5:
-            from sklearn.dummy import DummyClassifier
-            self.clf = DummyClassifier(strategy="constant", constant=True)
+
+            print(f"Not enough data to train a deviantart model. Require 5 examples, got {len(df)}.")
+
+            class DummyPredictor():
+                def __init__(self):
+                    pass
+
+                def predict(self, X):
+                    try:
+                        return [True] * len(X)
+                    except:
+                        return [True]
+
+                def predict_proba(self, X):
+                    try:
+                        return [[1, 0]] * len(X)
+                    except:
+                        return [[1, 0]]
+
+            self.clf = DummyPredictor()
             return
 
         ml_columns = features + ["notify"]
@@ -86,7 +104,7 @@ class DeviantArtModel(SiteModel):
                                 
         clf = Pipeline([
                 ('preprocessor', preprocessor),
-                ('classifier', SVC(C=0.5, class_weight='balanced', kernel = 'linear'))
+                ('classifier', SVC(C=0.5, class_weight='balanced', kernel = 'linear', probability=True))
         ])
 
         # Fit the model to the data.
@@ -103,9 +121,9 @@ class DeviantArtModel(SiteModel):
 
         X_post = post_df[features]
 
-        decision_function = self.clf.decision_function(X_post)[0]
+        probability = self.clf.predict_proba(X_post)[0, 0]
 
-        return {"success": True, "id" : post_id, "site": site, "notify": bool(decision_function >= 0), "score" : decision_function}
+        return {"success": True, "id" : post_id, "site": site, "notify": bool(probability >= 0), "score" : probability}
 
     def getStats(self):
 
@@ -139,8 +157,8 @@ class DeviantArtModel(SiteModel):
         # Keep features as well as the ID to be returned.
         labelling_df = df[features]
 
-        labelling_df['decision'] = self.clf.decision_function(labelling_df)
-        labelling_df['decision_distance'] = labelling_df['decision'].abs()
+        labelling_df['probability'] = self.clf.predict_proba(labelling_df)[:,1]
+        labelling_df['decision_distance'] = (labelling_df['probability'] - 0.5).abs()
         
         # Return the IDs of the posts with the `count` smallest distances from the seperating hyperplane.
         ids = labelling_df.nsmallest(count, 'decision_distance').index.values

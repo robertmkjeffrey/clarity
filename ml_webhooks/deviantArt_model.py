@@ -11,15 +11,17 @@ features = ["author", "title", "description", "tags"]
 
 class DeviantArtModel(SiteModel):
     def __init__(self, db_conn):
-        # Set classifier to None.
-        self.clf = None
         self.collection = db_conn.deviantartPosts
+        self.retrain()
         pass
 
     def _get_DevaintArt_data(self, filter):
         # Download data from MongoDB and convert to ML dataframe.
         raw_data = list(self.collection.find(filter, projection))
         df = pd.DataFrame(raw_data)
+
+        if len(df) == 0:
+            return df
 
         df['author']= df['author'].apply(lambda x: x["username"])
         df['tags'] = df['tags'].apply(lambda x: list(map(lambda y: y['tag_name'], x)))
@@ -119,6 +121,11 @@ class DeviantArtModel(SiteModel):
         if len(post_df) == 0:
             return {'success': False, 'site':site, 'id' : post_id, 'error': "id not found in database."}
 
+        if len(post_df) > 1:
+            print(f"Warning: non-unqiue id in dataframe. Id: {post_id}")
+            return {'success': False, 'site':site, 'id' : post_id, 'error': "id is not unique in database"}
+
+
         X_post = post_df[features]
 
         probability = self.clf.predict_proba(X_post)[0, 0]
@@ -161,7 +168,8 @@ class DeviantArtModel(SiteModel):
         labelling_df['decision_distance'] = (labelling_df['probability'] - 0.5).abs()
         
         # Return the IDs of the posts with the `count` smallest distances from the seperating hyperplane.
-        ids = labelling_df.nsmallest(count, 'decision_distance').index.values
+        # Sample first to prevent bias towards earlier posts in dataframe.
+        ids = labelling_df.sample(frac=1).nsmallest(count, 'decision_distance').index.values
 
         # Randomly select indicies to fill with random posts.
         # This prevents an inductive meltdown where confident mistakes aren't re-assessed.

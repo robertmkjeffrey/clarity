@@ -5,6 +5,7 @@ class SiteModel(ABC):
     @abstractmethod
     def __init__(self, db_conn):
         """Initialise site module."""
+        self.retrain()
         pass
 
     @abstractmethod

@@ -22,6 +22,7 @@ from deviantArt_model import DeviantArtModel
 # Define a mapping from site names to site objects
 SITE_NAMES = {"deviantart": DeviantArtModel(db_conn)}
 
+print("Completed retraining, starting Flask app..")
 @app.route('/retrain')
 def handle_retrain():
     """Retrain the classifier for the selected site with the most recent data avaliable."""
@@ -115,6 +116,4 @@ def handle_status():
 
 if __name__ == "__main__":
 
-    for site in SITE_NAMES.values():
-        site.retrain()
     app.run()

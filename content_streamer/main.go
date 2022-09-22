@@ -27,7 +27,7 @@ const mongoConnectTimeout = 5 * time.Second
 const databaseName = "adopt-detector-DB" // Database name in MongoDB.
 const keyFileName = "../keys.yaml"       // YAML file containing keys for linked sites.
 
-// Decision function threshold for notification. Between -1 and 1.
+// Probability function threshold for notification. Between 0 and 1.
 const POST_NOTIFICATION_THRESHOLD = -0.1
 
 // Global shared objects.
@@ -112,10 +112,13 @@ func databaseWriter(postWriteQueue <-chan postMessage, postNotifyQueue chan<- po
 
 // Struct to store results from the classifier.
 type classificationResult struct {
-	ID     string
-	Site   string
-	Notify bool
-	Score  float64
+	Success          bool
+	Error            string
+	ErrorDescription string `json:"error_description"`
+	ID               string
+	Site             string
+	Notify           bool
+	Score            float64
 }
 
 func classifyPost(post streamablePost) classificationResult {
@@ -145,7 +148,10 @@ func postNotifier(postNotifyQueue <-chan postMessage) {
 
 		result := classifyPost(post)
 
-		// TODO: Add option to swap between -0.5 criterion and 0.
+		if !result.Success {
+			log.Printf("Error in classifier. Type: %s\n%s\n", result.Error, result.ErrorDescription)
+		}
+
 		// Check if positive before sending notification.
 		if (result.Score > POST_NOTIFICATION_THRESHOLD) || message.forceNotify {
 			sendPost(post, result.Score)

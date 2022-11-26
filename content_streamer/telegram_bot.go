@@ -192,7 +192,7 @@ Commands:
 				waitingForResponse = true
 				responseHandler = followHandler
 			case "retrain":
-				// TODO: trigger a certain model to be retrained based on the latest data.
+				// Trigger a certain model to be retrained based on the latest data.
 				arguments := strings.Fields(update.Message.CommandArguments())
 
 				// Site to be retrained.
@@ -202,7 +202,7 @@ Commands:
 				// If we have none, retrain all sites.
 				// Otherwise, send an error.
 				if len(arguments) > 1 {
-					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Check /help for usage.")
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I don't know how to parse that many parameters. Check /help for usage.")
 					break
 				} else if len(arguments) == 0 {
 					siteName = "all"
@@ -252,7 +252,7 @@ Commands:
 				// If we have none, retrain all sites.
 				// Otherwise, send an error.
 				if len(arguments) > 1 {
-					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Check /help for usage.")
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I don't know how to parse that many parameters. Check /help for usage.")
 					break
 				} else if len(arguments) == 0 {
 					siteName = "all"
@@ -291,8 +291,7 @@ Commands:
 				} else {
 					msg = tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Failed to get statistics for model \"%s\".\nError: %s\n", siteName, result.Error))
 				}
-				// TODO: Calculate and return statistics about the models
-				// msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, this feature hasn't been implemented yet! Message @DingoDingus for an update.")
+
 			case "label":
 				// Send a series of posts to be labelled based on active-learning maths.
 
@@ -300,7 +299,7 @@ Commands:
 
 				// If there's not the right number of args, send an error message.
 				if len(arguments) != 2 {
-					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Check /help for usage.")
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I don't know how to parse that many parameters. Check /help for usage.")
 					break
 				}
 
@@ -360,7 +359,7 @@ Commands:
 
 				// If there's not the right number of args, send an error message.
 				if len(arguments) != 2 {
-					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Check /help for usage.")
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I don't know how to parse that many parameters. Check /help for usage.")
 					break
 				}
 
@@ -379,12 +378,12 @@ Commands:
 					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I couldn't find that post. Please try again.")
 					break
 				}
-				post.forceNotify = true
+				post.setNotify = BoolPointer(true)
 				downloadQueue <- post
 
 			default:
 				// If command isn't recognised, reply with error.
-				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I didn't understand what you said. Try /help for commands.")
+				msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Sorry, I don't recognise that command. Try /help for commands.")
 			}
 
 			if msg.Text != "" {

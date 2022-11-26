@@ -50,16 +50,15 @@ var dANewFeedSignal chan struct{}
 // TODO: Can I clean up the json/bson for these ones?
 // deviation implements the streamablePost interface, represeting a post drawn from deviantArt.
 type deviation struct {
-	Deviationid     string  `json:"deviationid" bson:"_id"`
-	URL             string  `json:"url" bson:"url"`
-	Author          dAUser  `json:"author" bson:"author"`
-	Title           string  `json:"title"`
-	Description     string  `json:"description"`
-	License         string  `json:"license"`
-	AllowsComments  bool    `json:"allows_comments" bson:"allows_comments"`
-	Tags            []dATag `json:"tags"`
-	IsMature        bool    `json:"is_mature" bson:"is_mature"`
-	forceNotifyFlag bool
+	Deviationid    string  `json:"deviationid" bson:"_id"`
+	URL            string  `json:"url" bson:"url"`
+	Author         dAUser  `json:"author" bson:"author"`
+	Title          string  `json:"title"`
+	Description    string  `json:"description"`
+	License        string  `json:"license"`
+	AllowsComments bool    `json:"allows_comments" bson:"allows_comments"`
+	Tags           []dATag `json:"tags"`
+	IsMature       bool    `json:"is_mature" bson:"is_mature"`
 }
 
 // dATag implements a tag (as part of a deviation)

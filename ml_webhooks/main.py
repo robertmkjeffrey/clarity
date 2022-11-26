@@ -62,7 +62,7 @@ def handle_classify():
 
     if site not in SITE_NAMES.keys():
         # If the site name doesn't exist in the SITE_NAMES dictionary, return an error.
-        return {"success": False, "error": "Cannot find site {e.args[0]}"}
+        return {"success": False, "error": f"Cannot find site {site}"}
     try:
         return SITE_NAMES[site].predict(post_id)
     except Exception as e:
@@ -83,7 +83,7 @@ def handle_label():
 
     if site not in SITE_NAMES.keys():
         # If the site name doesn't exist in the SITE_NAMES dictionary, return an error.
-        return {"success": False, "error": "Cannot find site {e.args[0]}"}
+        return {"success": False, "error": f"Cannot find site {site}"}
     try:
         return SITE_NAMES[site].getLabelPosts(count)
     except Exception as e:

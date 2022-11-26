@@ -55,15 +55,15 @@ class DeviantArtModel(SiteModel):
 
                 def predict(self, X):
                     try:
-                        return [True] * len(X)
+                        return np.array(np.array([True] * len(X)))
                     except:
-                        return [True]
+                        return np.array([True])
 
                 def predict_proba(self, X):
                     try:
-                        return [[1, 0]] * len(X)
+                        return np.array([[1.0, 0.0]] * len(X))
                     except:
-                        return [[1, 0]]
+                        return np.array([[1.0, 0.0]])
 
             self.clf = DummyPredictor()
             return

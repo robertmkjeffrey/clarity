@@ -5,6 +5,10 @@ import numpy as np
 # What percentage of labelling examples should be randomized.
 RANDOM_LABELLING_EXAMPLE_RATIO = 0.2
 
+# Thresholds for building the model.
+MINIMUM_TRAINING_EXAMPLES = 20
+MINIMUM_TRAINING_DESCRIPTIONS = 10
+
 site = "deviantart"
 projection = {'url':1, 'title':1, 'description':1, "notify":1, "tags.tag_name":1, "author.username":1}
 features = ["author", "title", "description", "tags"]
@@ -32,10 +36,18 @@ class DeviantArtModel(SiteModel):
 
         df = self._get_DevaintArt_data({'notify': {"$exists":True}})
 
-        # If we lack enough data to build a classifier, set a classifier that always returns True.
-        if len(df) < 5:
+        # Count the number of descriptions that have text.
+        # If we don't have enough, don't build the model
+        non_empty_descriptions = sum(df["description"].apply(lambda x: len(x) > 0))
 
-            print(f"Not enough data to train a deviantart model. Require 5 examples, got {len(df)}.")
+        # If we lack enough data to build a classifier, set a classifier that always returns True.
+        if len(df) < MINIMUM_TRAINING_EXAMPLES or non_empty_descriptions < MINIMUM_TRAINING_DESCRIPTIONS:
+
+            if len(df) < MINIMUM_TRAINING_EXAMPLES:
+                print(f"Not enough data to train a deviantart model. Require {MINIMUM_TRAINING_EXAMPLES} examples, got {len(df)}.")
+            elif non_empty_descriptions < MINIMUM_TRAINING_DESCRIPTIONS:
+                print(f"Not enough description data to train a deviantart model. Require {MINIMUM_TRAINING_DESCRIPTIONS} examples with non-empty description, got {non_empty_descriptions}.")
+            print("Using dummy predictor instead.")
 
             class DummyPredictor():
                 def __init__(self):

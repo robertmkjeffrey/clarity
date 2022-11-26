@@ -303,19 +303,6 @@ func dADownloadWorker(writeQueue chan<- postMessage) {
 			// If we haven't hit old posts yet, move to the next page.
 			offset = int(query["next_offset"].(float64))
 		}
-		// Set the lastQueryTime and lastPostTime to the current values
-		feed.LastQueryTime = time.Now()
-		feed.LastPostTime = newLastPostTime
-		// Set the NewFeed tag to false.
-		feed.NewFeed = false
-
-		// Update the feed object in the database.
-		filter := bson.M{"feed_type": feed.FeedType, "query": feed.Query}
-		update := bson.M{"$set": bson.M{"last_query_time": feed.LastQueryTime, "last_post_time": feed.LastPostTime, "new_feed": feed.NewFeed}}
-		_, err := database.Collection(deviantartFeedCollection).UpdateOne(context.TODO(), filter, update)
-		if err != nil {
-			log.Panicln(err)
-		}
 
 		// Get the deviation objects.
 		newDeviations := getDeviations(newIDs)
@@ -339,6 +326,21 @@ func dADownloadWorker(writeQueue chan<- postMessage) {
 				setNotify: setNotify,
 				skipWrite: false,
 			}
+		}
+
+		// Set the lastQueryTime and lastPostTime to the current values
+		feed.LastQueryTime = time.Now()
+		feed.LastPostTime = newLastPostTime
+
+		// Set the NewFeed tag to false.
+		feed.NewFeed = false
+
+		// Update the feed object in the database.
+		filter := bson.M{"feed_type": feed.FeedType, "query": feed.Query}
+		update := bson.M{"$set": bson.M{"last_query_time": feed.LastQueryTime, "last_post_time": feed.LastPostTime, "new_feed": feed.NewFeed}}
+		_, err := database.Collection(deviantartFeedCollection).UpdateOne(context.TODO(), filter, update)
+		if err != nil {
+			log.Panicln(err)
 		}
 
 		// Put the current seach back into the queue.

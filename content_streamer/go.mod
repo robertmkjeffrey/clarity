@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible
-	go.mongodb.org/mongo-driver v1.10.0
+	go.mongodb.org/mongo-driver v1.11.0
 	gopkg.in/yaml.v2 v2.4.0
 	jaytaylor.com/html2text v0.0.0-20211105163654-bc68cce691ba
 )

@@ -30,10 +30,13 @@ import (
 const pollingDelay = 5 * time.Minute
 
 // When a new feed is added, get all posts in the last initialHistoryAmount seconds.
-const initialHistoryAmount = 50_000_000
+const initialHistoryAmount = 50_000_000 // ~1 year, 7 months
 
-// Maximum number of pages to download before ending
-const maxPages = 5
+// Number of posts to be shown when adding a new feed.
+const newFeedNotificationLimit = 5
+
+// Maximum number of pages to download before ending. Primarily used to limit the initial feed.
+const maxPages = 10
 
 // Reability constants
 const urlEncoded = "application/x-www-form-urlencoded"
@@ -81,6 +84,7 @@ type dAFeed struct {
 	Query         string    `bson:"query"`
 	LastQueryTime time.Time `bson:"last_query_time"`
 	LastPostTime  int64     `bson:"last_post_time"`
+	NewFeed       bool      `bson:"new_feed"`
 }
 
 func (f dAFeed) getDAResults(offset int) map[string]interface{} {
@@ -302,10 +306,12 @@ func dADownloadWorker(writeQueue chan<- postMessage) {
 		// Set the lastQueryTime and lastPostTime to the current values
 		feed.LastQueryTime = time.Now()
 		feed.LastPostTime = newLastPostTime
+		// Set the NewFeed tag to false.
+		feed.NewFeed = false
 
 		// Update the feed object in the database.
 		filter := bson.M{"feed_type": feed.FeedType, "query": feed.Query}
-		update := bson.M{"$set": bson.M{"last_query_time": feed.LastQueryTime, "last_post_time": feed.LastPostTime}}
+		update := bson.M{"$set": bson.M{"last_query_time": feed.LastQueryTime, "last_post_time": feed.LastPostTime, "new_feed": feed.NewFeed}}
 		_, err := database.Collection(deviantartFeedCollection).UpdateOne(context.TODO(), filter, update)
 		if err != nil {
 			log.Panicln(err)
@@ -315,13 +321,23 @@ func dADownloadWorker(writeQueue chan<- postMessage) {
 		newDeviations := getDeviations(newIDs)
 
 		// Put them into the output queue.
-		for _, deviation := range newDeviations {
+		for i, deviation := range newDeviations {
+
+			var setNotify *bool
+
+			// If the feed is new, force notifications for the most recent few posts, and suppress all others.
+			if feed.NewFeed {
+				setNotify = BoolPointer(i < newFeedNotificationLimit)
+			} else {
+				setNotify = nil
+			}
+
 			// Set URL from the list we store before sending them off.
 			deviation.URL = postURLs[deviation.Deviationid]
 			writeQueue <- postMessage{
-				post:        deviation,
-				forceNotify: false,
-				skipWrite:   false,
+				post:      deviation,
+				setNotify: setNotify,
+				skipWrite: false,
 			}
 		}
 
@@ -528,6 +544,7 @@ func handleAddFeed(feedType string, update tgbotapi.Update) (bool, interface{}) 
 		Query:         query,
 		LastPostTime:  time.Now().Unix() - initialHistoryAmount,
 		LastQueryTime: time.Time{},
+		NewFeed:       true,
 	}
 	_, err := database.Collection(deviantartFeedCollection).InsertOne(context.TODO(), newFeed)
 	if err != nil {
@@ -586,9 +603,9 @@ func (deviation) downloadPost(id string) (postMessage, error) {
 
 	// log.Printf("URL: %s", post.URL)
 	return postMessage{
-		post:        post,
-		forceNotify: false,
-		skipWrite:   false,
+		post:      post,
+		setNotify: nil,
+		skipWrite: false,
 	}, nil
 
 }

@@ -342,9 +342,9 @@ Commands:
 						continue
 					}
 					message := postMessage{
-						post:        post,
-						forceNotify: true,
-						skipWrite:   true,
+						post:      post,
+						setNotify: BoolPointer(true),
+						skipWrite: true,
 					}
 					downloadQueue <- message
 				}

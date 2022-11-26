@@ -55,10 +55,14 @@ type streamablePost interface {
 	decodeDBResult(*mongo.SingleResult) (streamablePost, error)         //Decode a result from the database.
 }
 
+func BoolPointer(b bool) *bool {
+	return &b
+}
+
 type postMessage struct {
-	post        streamablePost // Post passed in message.
-	forceNotify bool           // When set, notify user regardless of classification.
-	skipWrite   bool           // When set, skip writing to database.
+	post      streamablePost // Post passed in message.
+	setNotify *bool          // When not null, will be used in place of notification value.
+	skipWrite bool           // When set, skip writing to database.
 }
 
 // TODO: Decide if necessary.
@@ -146,14 +150,19 @@ func postNotifier(postNotifyQueue <-chan postMessage) {
 	for message := range postNotifyQueue {
 		post := message.post
 
+		// If setNotify is false, skip classification.
+		if message.setNotify != nil && !(*message.setNotify) {
+			continue
+		}
+
 		result := classifyPost(post)
 
 		if !result.Success {
 			log.Printf("Error in classifier. Type: %s\n%s\n", result.Error, result.ErrorDescription)
 		}
 
-		// Check if positive before sending notification.
-		if (result.Score > POST_NOTIFICATION_THRESHOLD) || message.forceNotify {
+		// Send post if score is above threshold, or if setNotify overrides to True.
+		if (result.Score > POST_NOTIFICATION_THRESHOLD) || ((message.setNotify != nil) && (*message.setNotify)) {
 			sendPost(post, result.Score)
 		}
 	}
